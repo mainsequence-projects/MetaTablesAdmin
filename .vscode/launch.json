@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MetaTables: API (8001) + Admin (5175)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/${config:metatables.backendPath}/.venv/bin/python",
+      "program": "${workspaceFolder}/scripts/dev.py",
+      "cwd": "${workspaceFolder}/${config:metatables.backendPath}",
+      "envFile": "${workspaceFolder}/.vscode/local-debug.env",
+      "args": [
+        "--sdk-session-source",
+        "vscode",
+        "--backend-dir",
+        "${workspaceFolder}/${config:metatables.backendPath}",
+        "--api-port",
+        "8001",
+        "--admin-port",
+        "5175"
+      ],
+      "console": "integratedTerminal",
+      "subProcess": true,
+      "justMyCode": true
+    }
+  ]
+}
