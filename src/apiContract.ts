@@ -71,3 +71,14 @@ export function updateRecord(row: UpdateApiRecord): DataUpdateDetail {
     configuration: row.configuration ?? row.build_configuration,
   };
 }
+/** Preserve useful API failures without reflecting submitted values or driver data. */
+export function apiErrorDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (!Array.isArray(detail)) return null;
+  const errors = detail.flatMap(item => {
+    if (!item || typeof item !== "object" || typeof item.msg !== "string") return [];
+    const field = Array.isArray(item.loc) ? item.loc.filter((part: unknown) => part !== "body").join(".") : "";
+    return [field ? `${field}: ${item.msg}` : item.msg];
+  });
+  return errors.length ? errors.join("; ") : null;
+}

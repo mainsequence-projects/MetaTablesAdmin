@@ -118,3 +118,11 @@ For each route: publish OpenAPI request/response/error schemas, pagination and o
 - Command Center Foundry source at `d89aff95e439a5574af67433dab1f12cdd9ef591`: `apps/mainsequence-foundry/src/extensions/workbench/features/{tables,data-updates,namespaces}/README.md`, the three page/detail implementations, and `apps/mainsequence-foundry/src/common/api/index.ts`.
 - Adjacent MetaTables working tree on 2026-09-27: `api/app/main.py`, `api/app/routes/`, `docs/python_package/http_operation_map.md`, `docs/permissions/caller_assertions.md`, `docs/metatables/README.md`, `docs/namespaces/README.md`, and `docs/time_index_table_updates/README.md`.
 - The three linked local Command Center pages were inspected in the user's existing browser session on 2026-09-27; the source files above fill in detail views affected by current request errors.
+
+## DataSource engine management (2026-09-28)
+
+The Data Sources view manages PostgreSQL, TimescaleDB, MySQL and MSSQL through the
+same MetaTables API routes. The engine controls port/schema defaults and TLS
+fields. The browser submits platform Secret UIDs only. Table capabilities remain
+API-owned: MySQL and MSSQL support connection management and validation, display
+their missing table workflow support, and cannot be made the default.

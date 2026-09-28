@@ -1,6 +1,6 @@
 /** MetaTables API transport. The SDK carries hosted requests to this API only. */
 import { StaticSiteFastApiCredentialError } from "@dev-mainsequence/command-center-sdk/embed";
-import { tableQuery, tableRecord, updateRecord, type TableApiRecord, type UpdateApiRecord } from "./apiContract";
+import { apiErrorDetail, tableQuery, tableRecord, updateRecord, type TableApiRecord, type UpdateApiRecord } from "./apiContract";
 
 export type Page<T> = {
   count: number;
@@ -249,12 +249,13 @@ async function request<T>(
       ? (payload as { detail: unknown }).detail
       : null;
     const missingRoute = response.status === 404 && detail === "Not Found";
+    const apiMessage = apiErrorDetail(detail);
     const message = missingRoute
       ? "This capability is not exposed by the MetaTables API yet."
+      : apiMessage !== null
+        ? apiMessage
       : response.status === 502 || response.status === 503 || response.status === 504
         ? hostedTransport ? "The MetaTables API release is unavailable." : "The MetaTables API is unavailable. Check that the local service is running."
-      : typeof detail === "string"
-        ? detail
         : response.status === 401
           ? "The MetaTables API did not admit this request. Check its local or hosted authentication setup."
           : response.status === 403
@@ -278,10 +279,14 @@ function mapPage<T, U>(value: Page<T>, project: (row: T) => U): Page<U> {
   return { ...value, results: value.results.map(project) };
 }
 
-export type SourceConfiguration = {
-  host: string; port: number; database_name: string; database_user: string;
-  default_schema: string; ssl_mode: string; password_secret_uid: string | null;
-  tls_ca_secret_uid?: string | null; tls_certificate_secret_uid?: string | null; tls_key_secret_uid?: string | null;
+export type { SourceConfiguration, SourceEngine } from "./sourceConfiguration";
+import type { SourceConfiguration, SourceEngine } from "./sourceConfiguration";
+export type SourcePatch = {
+  display_name?: string; configuration?: SourceConfiguration;
+  storage_access_mode?: string; is_default?: boolean;
+};
+export type SourceCreate = SourcePatch & {
+  display_name: string; class_type: SourceEngine; configuration: SourceConfiguration;
 };
 export type SourceRecord = {
   uid: string; display_name: string; class_type: string; status: string;
@@ -291,8 +296,8 @@ export type SourceRecord = {
 export const metaTablesApi = {
   sources: (search: string, offset: number, signal?: AbortSignal) => request<Page<SourceRecord>>("GET", "data-sources/", { query: { search, limit: 25, offset }, signal }),
   source: (uid: string, signal?: AbortSignal) => request<SourceRecord>("GET", `data-sources/${encodeURIComponent(uid)}/`, { signal }),
-  createSource: (body: unknown) => request<SourceRecord>("POST", "data-sources/", { body }),
-  updateSource: (uid: string, body: unknown) => request<SourceRecord>("PATCH", `data-sources/${encodeURIComponent(uid)}/`, { body }),
+  createSource: (body: SourceCreate) => request<SourceRecord>("POST", "data-sources/", { body }),
+  updateSource: (uid: string, body: SourcePatch) => request<SourceRecord>("PATCH", `data-sources/${encodeURIComponent(uid)}/`, { body }),
   validateSource: (uid: string) => request<SourceRecord>("POST", `data-sources/${encodeURIComponent(uid)}/validate/`, { body: {} }),
   deleteSource: (uid: string) => request<null>("DELETE", `data-sources/${encodeURIComponent(uid)}/`),
   listTables: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) =>

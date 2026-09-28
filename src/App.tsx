@@ -78,7 +78,7 @@ function ResourceRoute({ resource }: { resource: PageResource }) {
   const [search] = useSearchParams();
   const tab = search.get("tab");
   return <ApplicationPageStack>
-    {resource === "data-sources" ? <DataSourcesPage uid={uid ?? null} /> : resource === "tables" ? <TablesPage uid={uid ?? null} tab={tab} />
+    {resource === "data-sources" ? <DataSourcesPage key={uid ?? "list"} uid={uid ?? null} /> : resource === "tables" ? <TablesPage uid={uid ?? null} tab={tab} />
       : resource === "data-updates" ? <DataUpdatesPage uid={uid ?? null} tab={tab} />
         : <NamespacesPage uid={uid ?? null} tab={tab} />}
   </ApplicationPageStack>;

@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { tableQuery, tableRecord, updateRecord } from "../src/apiContract.ts";
+import { apiErrorDetail, tableQuery, tableRecord, updateRecord } from "../src/apiContract.ts";
+
+test("database validation failures and field errors retain useful API messages", () => {
+  assert.equal(apiErrorDetail("Install the mssql driver dependencies on the MetaTables API server."),
+    "Install the mssql driver dependencies on the MetaTables API server.");
+  assert.equal(apiErrorDetail([{ loc: ["body", "configuration", "port"], msg: "Input should be less than or equal to 65535", input: "private-value" }]),
+    "configuration.port: Input should be less than or equal to 65535");
+  assert.equal(apiErrorDetail(null), null);
+});
 
 test("table filters and sorting use the Python API contract", () => {
   assert.deepEqual(tableQuery({ search: "prices", kind: "row", ordering: "-created_at", limit: 25 }), {

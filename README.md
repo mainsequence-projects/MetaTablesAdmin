@@ -71,13 +71,38 @@ connection error. No sample records or alternate data backend are used.
 
 The pages already implement:
 
-- DataSource registration and configuration for PostgreSQL and TimescaleDB, connection validation, default selection, disablement, and removal. Credentials are referenced by ordinary platform Secret UIDs; the form never accepts secret values. The API enforces creator-only management and protects referenced sources. Local SQLite paths are controlled by the launcher.
+- DataSource registration and configuration for PostgreSQL, TimescaleDB, MySQL and Microsoft SQL Server (MSSQL), connection validation, disablement, and removal. Default selection is available for table-capable engines. MySQL and MSSQL currently support connection management; their table read/write/migration adapters are not yet implemented. Credentials are referenced by ordinary platform Secret UIDs; the form never accepts secret values. The API enforces creator-only management and protects referenced sources. Local SQLite paths are controlled by the launcher.
 - Table list search, kind and namespace filters, server sort and pagination; detail metadata, description, snapshot, graph, stats, updates, Timescale policies, permissions, and server-advertised action preflight.
 - Data Update list and detail, dependency graph, historical runs, and bounded logs.
 - Namespace list and detail, combined table inventory, and permissions with explicit propagation.
 - URL-backed detail tabs, cross-links, loading/empty/error states, and a shared typed API client.
 
 The final API paths, response schemas, permission flags, and hosted identity exchange must be settled and implemented in MetaTables before these screens can deliver full parity. Reconcile `src/api.ts` with the published OpenAPI contract when those routes land.
+
+## Manage DataSources
+
+Open **Data Sources → Register source**. Select PostgreSQL, TimescaleDB, MySQL,
+or Microsoft SQL Server, then enter the host, database, username and password
+Secret UID. The form selects the engine's default port and schema and displays
+only its TLS options. MySQL uses its database name as the schema; MSSQL defaults
+to `dbo`, encrypted connections and certificate verification.
+
+Save the registration and choose **Validate connection** on its detail page.
+Validation opens a connection from the API server and runs `SELECT 1`. A failed
+check displays an error and records `FAILED`; correcting the configuration and
+validating again can recover it. Connection success does not enable unimplemented
+table operations. MySQL and MSSQL display this limitation and cannot become the
+table-workflow default.
+
+The API server needs the `mysql` or `mssql` Python extra for those engines. MSSQL
+also needs Microsoft ODBC Driver 18 for SQL Server and the OS ODBC driver manager.
+Database drivers and Secret values are never installed or resolved in the browser.
+
+Use the detail form to edit connection settings, **Disable** to block connections,
+and **Remove registration** for an unused source. Only its creator can manage it.
+The API protects referenced and default sources and preserves database contents
+and platform Secrets on removal. Configuration edits replace the complete engine
+configuration; switching engines requires a new registration.
 
 ## Build
 
