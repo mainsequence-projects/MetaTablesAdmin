@@ -1,66 +1,154 @@
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ApplicationCardGrid, ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import { Button, Field, Input } from "@dev-mainsequence/command-center-sdk/controls";
-import { DataTable } from "@dev-mainsequence/command-center-sdk/views";
-import { metaTablesApi, type SourceConfiguration, type SourceEngine, type SourceRecord } from "../api";
+import { DataTable, EntitySummary, ResourceDetailShell, ResourceActionConfirmationDialog, ResourceListPage } from "@dev-mainsequence/command-center-sdk/views";
+import { resolveResourceDetailTabs } from "@dev-mainsequence/command-center-sdk/resource";
+import { ArrowLeft, Calendar, Database, Fingerprint, FolderOpen, Globe, RefreshCw, Server, type LucideIcon } from "lucide-react";
+import { metaTablesApi, type SourceConfiguration, type SourceEngine, type SourceRecord, type SourceSummary } from "../api";
+import { sourceDetailTabs } from "../detailTabs";
+import { DetailTabIcon } from "../detailTabIcons";
+import { DataSourceTypeIcon, sourceEnginePickerIcon } from "../DataSourceTypeIcon";
 import { sourceDefaults, sourceEngines, switchSourceEngine } from "../sourceConfiguration";
-import { Card, Facts, PageHeading, Pagination, RemoteContent, StatePanel, useDebounced, useRemote } from "../ui";
+import { useRuntimeContext } from "../runtimeContext";
+import { runtimeSourcesResource, sourcesResource } from "../resources";
+import { adminPaths } from "../navigation";
+import { Badge, Card, DetailSection, PageHeading, StatePanel, Picker, useRemote } from "../ui";
 
-export function DataSourcesPage({ uid }: { uid: string | null }) {
-  const [revision, refresh] = useState(0);
-  const [actionError, setActionError] = useState("");
-  const [search, setSearch] = useState("");
-  const [offset, setOffset] = useState(0);
-  const term = useDebounced(search);
+export function DataSourcesPage({ uid, administration = false }: { uid: string | null; administration?: boolean }) {
+  const { runtime } = useRuntimeContext();
   const navigate = useNavigate();
-  const remote = useRemote(`sources-${uid}-${term}-${offset}-${revision}`, signal => uid && uid !== "new"
-    ? metaTablesApi.source(uid, signal).then(source => ({ count: 1, results: [source] }))
-    : metaTablesApi.sources(term, offset, signal));
-  if (uid === "new") return <><PageHeading eyebrow="Connections" title="Register Data Source" /><SourceEditor onSaved={source => navigate(`/data-sources/${source.uid}`)} /></>;
-  return <><PageHeading eyebrow="Connections" title="Data Sources" description="Database registrations owned by this MetaTables API." actions={<Button onClick={() => navigate('/data-sources/new')}>Register source</Button>} />
-    {uid && <Link to="/data-sources">All data sources</Link>}
-    {actionError && <p role="alert">{actionError}</p>}
-    {!uid && <Field label="Search"><Input value={search} onChange={e => { setSearch(e.target.value); setOffset(0); }} /></Field>}
-    <RemoteContent state={remote}>{data => uid ? <SourceDetail key={uid} source={data.results[0]} setError={setActionError} refresh={() => refresh(v => v + 1)} /> : <Card>
-      <DataTable items={data.results} getId={source => source.uid} onActivateRow={source => navigate(`/data-sources/${source.uid}`)} columns={[
-        { id: 'name', header: 'Name', renderCell: source => source.display_name },
-        { id: 'engine', header: 'Engine', renderCell: source => source.class_type },
-        { id: 'status', header: 'Status', renderCell: source => source.status },
-        { id: 'access', header: 'Access', renderCell: source => source.storage_access_mode },
-        { id: 'default', header: 'Default', renderCell: source => source.is_default ? 'Yes' : 'No' },
-      ]} />
-      <Pagination count={data.count} limit={25} offset={offset} onChange={setOffset} noun="data sources" />
-    </Card>}</RemoteContent>
+  const [search] = useSearchParams();
+  const runtimeChoice = administration && search.get("scope") !== "catalog";
+  if ((administration || uid === "new") && runtime.is_admin !== true) return <StatePanel title="Admin access required">DataSource settings are managed by application admins.</StatePanel>;
+  if (uid === "new") return <><PageHeading eyebrow="Connections" title="Register DataSource" />{runtimeChoice
+    ? <SourceEditor runtimeChoice onSaved={source => navigate(`${adminPaths.dataSources}/${source.uid}?scope=runtime`)} />
+    : runtime.local_mode ? <StatePanel title="Local storage is fixed"><DataSourceTypeIcon engine="sqlite" /> The local catalog uses its workspace SQLite database.</StatePanel>
+      : <SourceEditor onSaved={source => navigate(`${adminPaths.dataSources}/${source.uid}?scope=catalog`)} />}</>;
+  return uid ? <SourceDetailPage uid={uid} administration={administration} runtimeChoice={runtimeChoice} />
+    : administration ? <ApplicationPageStack>
+      {runtime.local_mode && <SourceRegistry administration />}
+      <ResourceListPage definition={runtimeSourcesResource} pageSize={25}
+      tablePresentation="auto" searchable refreshable searchPlaceholder="Search registered connections"
+      primaryActions={[{ id: "register", label: "Add DataSource", onSelect: () => navigate(`${adminPaths.dataSources}/new?scope=runtime`) }]}
+      onRowActivate={source => navigate(`${adminPaths.dataSources}/${source.uid}?scope=runtime`)} />
+      {!runtime.local_mode && <SourceRegistry administration />}</ApplicationPageStack>
+      : <SourceRegistry administration={false} />;
+}
+
+function SourceRegistry({ administration }: { administration: boolean }) {
+  const { runtime } = useRuntimeContext();
+  const navigate = useNavigate();
+  return <>
+    {runtime.local_mode && <StatePanel title="Workspace storage"><DataSourceTypeIcon engine="sqlite" /> The SQLite source is managed by the local runtime. Its storage, default selection and access cannot be changed here.</StatePanel>}
+    <ResourceListPage
+      definition={sourcesResource}
+      pageSize={25}
+      tablePresentation="auto"
+      searchable
+      refreshable
+      searchPlaceholder="Search data source name"
+      primaryActions={runtime.is_admin !== true ? [] : !administration
+        ? [{ id: "manage", label: "Manage sources", onSelect: () => navigate(adminPaths.dataSources) }]
+        : runtime.local_mode ? [] : [{ id: "register", label: "Register catalog source", onSelect: () => navigate(`${adminPaths.dataSources}/new?scope=catalog`) }]}
+      onRowActivate={source => navigate(`${administration ? adminPaths.dataSources : "/data-sources"}/${source.uid}${administration ? "?scope=catalog" : ""}`)}
+    />
   </>;
 }
 
-function SourceDetail({ source, refresh, setError }: { source: SourceRecord; refresh: () => void; setError: (message: string) => void }) {
+const summaryIcons: Record<string, LucideIcon> = {
+  server: Server, database: Database, fingerprint: Fingerprint, calendar: Calendar,
+  folder: FolderOpen, globe: Globe,
+};
+
+function SourceDetailPage({ uid, administration, runtimeChoice = false }: { uid: string; administration: boolean; runtimeChoice?: boolean }) {
+  const { runtime } = useRuntimeContext();
+  const navigate = useNavigate();
+  const listPath = administration ? adminPaths.dataSources : "/data-sources";
+  const [search, setSearch] = useSearchParams();
+  const [revision, refresh] = useState(0);
+  const [actionError, setActionError] = useState("");
+  const remote = useRemote(`source-detail-${uid}-${revision}`, async signal => {
+    const [source, summary] = await Promise.all([runtimeChoice ? metaTablesApi.runtimeSource(uid, signal) : metaTablesApi.source(uid, signal),
+      runtimeChoice ? metaTablesApi.runtimeSourceSummary(uid, signal) : metaTablesApi.sourceSummary(uid, signal)]);
+    return { source, summary };
+  });
+  const detail = remote.status === "ready" ? remote.data : null;
+  const { tabs, activeTab } = resolveResourceDetailTabs(sourceDetailTabs, { activeTabId: search.get("tab"), resource: detail?.source });
+  return <ResourceDetailShell<SourceRecord>
+    breadcrumbs={[{ id: "data-sources", label: "Data Sources", onSelect: () => navigate(listPath) },
+      { id: uid, label: detail?.summary.entity.title ?? "Data Source" }]}
+    renderBreadcrumbLead={({ current }) => current ? <DataSourceTypeIcon engine={detail?.source.class_type ?? ""} /> : null}
+    headerActions={<>
+      <Button variant="outline" onClick={() => navigate(listPath)}><ArrowLeft size={16} aria-hidden="true" />Back to list</Button>
+      {!administration && runtime.is_admin === true && detail?.source.can_manage && <Button onClick={() => navigate(`${adminPaths.dataSources}/${uid}`)}>Manage source</Button>}
+      <Button variant="outline" disabled={remote.status === "loading"} onClick={() => refresh(value => value + 1)}><RefreshCw size={16} aria-hidden="true" />Refresh</Button>
+    </>}
+    loading={remote.status === "loading"} loadingTitle="Loading Data Source…" loadingDescription="Loading the selected Data Source."
+    error={remote.status === "error" ? <ApplicationPageStack><p>{remote.error.message}</p>
+      <Button onClick={() => refresh(value => value + 1)}>Retry</Button></ApplicationPageStack> : undefined}
+    summary={detail && <EntitySummary summary={detail.summary} renderFieldLead={field => {
+      if (field.key === "class_type") return <DataSourceTypeIcon engine={detail.source.class_type} />;
+      const Icon = field.icon ? summaryIcons[field.icon] : undefined;
+      return Icon ? <Icon size={14} aria-hidden="true" /> : null;
+    }} />}
+    tabs={tabs} activeTabId={activeTab?.id} tabsLabel="Data Source sections"
+    renderTabLead={({ tab }) => <DetailTabIcon id={tab.id} />}
+    onTabChange={tab => setSearch(current => { const next = new URLSearchParams(current); next.set("tab", tab); return next; })}
+    >
+    {detail && activeTab?.id === "details" && <ApplicationPageStack>
+      {actionError && <StatePanel embedded title="Action failed" tone="danger">{actionError}</StatePanel>}
+      <SourceDetail source={detail.source} summary={detail.summary} administration={administration} runtimeChoice={runtimeChoice} setError={setActionError} refresh={() => refresh(value => value + 1)} />
+    </ApplicationPageStack>}
+  </ResourceDetailShell>;
+}
+
+function SourceDetail({ source, summary, administration, runtimeChoice, refresh, setError }: { source: SourceRecord; summary: SourceSummary; administration: boolean; runtimeChoice: boolean; refresh: () => void; setError: (message: string) => void }) {
+  const { runtime } = useRuntimeContext();
+  const canManage = administration && runtime.is_admin === true && source.can_manage === true;
+  const selectedForHosted = runtimeChoice && (runtime.hosted_bootstrap?.selected_source_uid === source.uid || runtime.bootstrap?.selected_source_uid === source.uid);
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   async function act(operation: () => Promise<unknown>) {
     setBusy(true); setError("");
-    try { await operation(); } catch (e) { setError(e instanceof Error ? e.message : 'Operation failed'); }
+    try { await operation(); } catch (e) { setError(e instanceof Error ? e.message : "Operation failed"); }
     finally { setBusy(false); refresh(); }
   }
   const supportsTables = source.capabilities.includes("supports_schema_migrations");
-  return <><Card title={source.display_name}><Facts items={[
-    { label: 'UID', value: source.uid }, { label: 'Engine', value: source.class_type },
-    { label: 'Status', value: source.status }, { label: 'Access', value: source.storage_access_mode },
-    { label: 'Default', value: source.is_default ? 'Yes' : 'No' },
-  ]} />{source.can_manage && <div className="toolbar">
-    <Button disabled={busy || source.storage_access_mode === 'disabled'} onClick={() => void act(() => metaTablesApi.validateSource(source.uid))}>Validate connection</Button>
-    <Button disabled={busy} onClick={() => void act(() => metaTablesApi.updateSource(source.uid, { storage_access_mode: source.storage_access_mode === 'disabled' ? 'read_write' : 'disabled' }))}>{source.storage_access_mode === 'disabled' ? 'Enable' : 'Disable'}</Button>
-    <Button disabled={busy || !supportsTables} onClick={() => void act(() => metaTablesApi.updateSource(source.uid, { is_default: !source.is_default }))}>{source.is_default ? 'Clear default' : 'Use as default'}</Button>
+  const management = canManage && <>
+    <Button disabled={busy || source.storage_access_mode === "disabled"} onClick={() => void act(() => runtimeChoice ? metaTablesApi.validateRuntimeSource(source.uid) : metaTablesApi.validateSource(source.uid))}>Validate connection</Button>
+    <Button disabled={busy} onClick={() => void act(() => runtimeChoice ? metaTablesApi.updateRuntimeSource(source.uid, { storage_access_mode: source.storage_access_mode === "disabled" ? "read_write" : "disabled" }) : metaTablesApi.updateSource(source.uid, { storage_access_mode: source.storage_access_mode === "disabled" ? "read_write" : "disabled" }))}>{source.storage_access_mode === "disabled" ? "Enable" : "Disable"}</Button>
     <Button disabled={busy || source.is_default} onClick={() => setConfirmDelete(true)}>Remove registration</Button>
-  </div>}{confirmDelete && <StatePanel title="Remove this registration?" action={<Button disabled={busy} onClick={() => void act(async () => { await metaTablesApi.deleteSource(source.uid); navigate('/data-sources'); })}>Confirm removal</Button>}>Referenced sources cannot be removed. Database contents and platform Secrets are preserved.</StatePanel>}
-  </Card>
-  {source.can_manage && source.configuration && <SourceEditor key={JSON.stringify(source.configuration)} source={source} onSaved={refresh} />}
-  {!supportsTables && <StatePanel title="Connection management">Registration, configuration and connection validation are supported. Table reads, writes and migrations are not yet available for this engine, so it cannot be selected as the table-workflow default.</StatePanel>}
-  <Card title="Table capabilities"><ul>{source.capabilities.map(value => <li key={value}>{value.replace(/^supports_/, '').replaceAll('_', ' ')}</li>)}</ul></Card></>;
+  </>;
+  return <>
+    {canManage && source.configuration
+      ? <SourceEditor embedded runtimeChoice={runtimeChoice} key={JSON.stringify(source.configuration)} source={source} onSaved={refresh} actions={management} />
+      : <DetailSection title="Data Source details" description={selectedForHosted
+        ? "This DataSource is selected for the hosted runtime. Select another one in Settings before editing or removing it."
+        : summary.extensions?.runtime_managed ? "This DataSource is managed with the API runtime."
+          : "Connection settings are managed by application admins."}>
+        <ApplicationCardGrid>
+          <Field label="Name"><Input readOnly value={source.display_name} /></Field>
+          <Field label="Engine"><Input readOnly value={String(summary.inline_fields.find(field => field.key === "class_type")?.value ?? source.class_type)} /></Field>
+          {summary.highlight_fields.map(field => <Field key={field.key} label={field.label}><Input readOnly value={String(field.value ?? "")} /></Field>)}
+        </ApplicationCardGrid>
+      </DetailSection>}
+    {!supportsTables && <StatePanel embedded title="Connection management">Registration, configuration and connection validation are supported. Table reads, writes and migrations are not yet available for this engine.</StatePanel>}
+    <DetailSection title="Table capabilities"><DataTable items={source.capabilities} getId={value => value} presentation="auto"
+      emptyContent="No table operations supported."
+      columns={[{ id: "capability", header: "Capability", importance: "primary", renderCell: value => value.replace(/^supports_/, "").replaceAll("_", " ") }]} /></DetailSection>
+    {canManage && confirmDelete && <ResourceActionConfirmationDialog title="Remove DataSource registration" actionLabel="Remove registration"
+      description={`Remove ${source.display_name}? Database contents and platform Secrets are preserved. Referenced sources cannot be removed.`}
+      tone="danger" confirmationValue="" onConfirmationValueChange={() => {}} confirmButtonLabel="Remove registration"
+      pending={busy} presentation="auto" onClose={() => setConfirmDelete(false)} onConfirm={() => act(async () => {
+        await (runtimeChoice ? metaTablesApi.deleteRuntimeSource(source.uid) : metaTablesApi.deleteSource(source.uid)); navigate(adminPaths.dataSources);
+      })} />}
+  </>;
 }
 
-function SourceEditor({ source, onSaved }: { source?: SourceRecord; onSaved: (source: SourceRecord) => void }) {
+function SourceEditor({ source, onSaved, actions, embedded = false, runtimeChoice = false }: { source?: SourceRecord; onSaved: (source: SourceRecord) => void; actions?: ReactNode; embedded?: boolean; runtimeChoice?: boolean }) {
+  const formId = useId();
   const [name, setName] = useState(source?.display_name ?? '');
   const [engine, setEngine] = useState<SourceEngine>((source?.class_type as SourceEngine) ?? 'postgresql');
   const [access, setAccess] = useState(source?.storage_access_mode ?? 'read_write');
@@ -71,31 +159,37 @@ function SourceEditor({ source, onSaved }: { source?: SourceRecord; onSaved: (so
     event.preventDefault(); setBusy(true); setError('');
     try {
       const body = { display_name: name, configuration, storage_access_mode: access };
-      onSaved(source ? await metaTablesApi.updateSource(source.uid, body) : await metaTablesApi.createSource({ ...body, class_type: engine }));
+      onSaved(source ? await (runtimeChoice ? metaTablesApi.updateRuntimeSource(source.uid, body) : metaTablesApi.updateSource(source.uid, body))
+        : await (runtimeChoice ? metaTablesApi.createRuntimeSource({ ...body, class_type: engine }) : metaTablesApi.createSource({ ...body, class_type: engine })));
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to save source'); }
     finally { setBusy(false); }
   }
-  return <Card title="Connection configuration" description="Credentials are references to platform Secrets. Secret values are never displayed here."><form onSubmit={submit}>
+  const Panel = embedded ? DetailSection : Card;
+  return <Panel title={source ? "Data Source editor" : "Connection configuration"} description="Configure the database connection using platform Secret references."
+    actions={<>{actions}<Button type="submit" form={formId} variant="primary" pending={busy} disabled={busy}>{source ? "Save changes" : "Create DataSource"}</Button></>}>
+    <form id={formId} onSubmit={submit}><ApplicationPageStack><ApplicationCardGrid>
     <Field label="Name"><Input required value={name} onChange={e => setName(e.target.value)} /></Field>
-    <Field label="Engine"><select className="cc-control" aria-label="Engine" value={engine} disabled={!!source} onChange={e => {
-      const next = e.target.value as SourceEngine;
+    <Field label="Engine"><Picker ariaLabel="Engine" value={engine} disabled={!!source}
+      options={sourceEngines.map(option => ({ ...option, icon: sourceEnginePickerIcon(option.value) }))}
+      renderValue={selected => selected[0] && <span className="data-source-picker-value"><DataSourceTypeIcon engine={selected[0].value} />{selected[0].label}</span>}
+      onValueChange={value => {
+      const next = value as SourceEngine;
       setEngine(next); setConfiguration(current => switchSourceEngine(current, next));
-    }}>{sourceEngines.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
-    {(engine === 'mysql' || engine === 'mssql') && <p role="note">This engine supports connection management and validation. Table operations are not yet available.</p>}
+    }} /></Field>
     {(['host', 'database_name', 'database_user'] as const).map(key => <Field key={key} label={key.replaceAll('_', ' ')}><Input required value={configuration[key]} onChange={e => setConfiguration(c => ({ ...c, [key]: e.target.value, ...(key === 'database_name' && engine === 'mysql' ? { default_schema: e.target.value } : {}) }))} /></Field>)}
     <Field label="Default schema" description={engine === 'mysql' ? 'MySQL uses the database name as its schema.' : undefined}><Input required readOnly={engine === 'mysql'} value={configuration.default_schema} onChange={e => setConfiguration(c => ({ ...c, default_schema: e.target.value }))} /></Field>
     <Field label="Password Secret UID" description="UID of a platform Secret accessible to the MetaTables API."><Input value={configuration.password_secret_uid ?? ''} onChange={e => setConfiguration(c => ({ ...c, password_secret_uid: e.target.value || null }))} /></Field>
     <Field label="Port"><Input type="number" min={1} max={65535} required value={configuration.port} onChange={e => setConfiguration(c => ({ ...c, port: Number(e.target.value) }))} /></Field>
     {engine === 'mssql' ? <>
-      <Field label="Encryption"><select className="cc-control" aria-label="Encryption" value={String(configuration.encrypt)} onChange={e => setConfiguration(c => ({ ...c, encrypt: e.target.value === 'true' }))}><option value="true">Required</option><option value="false">Optional</option></select></Field>
-      <Field label="Server certificate" description="Verification uses the API server's certificate trust store."><select className="cc-control" aria-label="Server certificate" value={String(configuration.trust_server_certificate)} onChange={e => setConfiguration(c => ({ ...c, trust_server_certificate: e.target.value === 'true' }))}><option value="false">Verify certificate</option><option value="true">Trust without verification</option></select></Field>
-      <p>The API server needs the MSSQL extra and Microsoft ODBC Driver 18 for SQL Server.</p>
+      <Field label="Encryption"><Picker ariaLabel="Encryption" value={String(configuration.encrypt)} options={[{ value: "true", label: "Required" }, { value: "false", label: "Optional" }]} onValueChange={value => setConfiguration(c => ({ ...c, encrypt: value === 'true' }))} /></Field>
+      <Field label="Server certificate" description="Verification uses the API server's certificate trust store."><Picker ariaLabel="Server certificate" value={String(configuration.trust_server_certificate)} options={[{ value: "false", label: "Verify certificate" }, { value: "true", label: "Trust without verification" }]} onValueChange={value => setConfiguration(c => ({ ...c, trust_server_certificate: value === 'true' }))} /></Field>
     </> : <>
-      <Field label="TLS mode"><select className="cc-control" aria-label="TLS mode" value={configuration.ssl_mode} onChange={e => setConfiguration(c => ({ ...c, ssl_mode: e.target.value }))}>{(engine === 'mysql' ? ['verify-full', 'verify-ca', 'require', 'disable'] : ['require', 'verify-ca', 'verify-full', 'prefer', 'allow', 'disable']).map(mode => <option key={mode}>{mode}</option>)}</select></Field>
+      <Field label="TLS mode"><Picker ariaLabel="TLS mode" value={configuration.ssl_mode ?? null} options={(engine === 'mysql' ? ['verify-full', 'verify-ca', 'require', 'disable'] : ['require', 'verify-ca', 'verify-full', 'prefer', 'allow', 'disable']).map(value => ({ value, label: value }))} onValueChange={value => setConfiguration(c => ({ ...c, ssl_mode: value }))} /></Field>
       {(['tls_ca_secret_uid', 'tls_certificate_secret_uid', 'tls_key_secret_uid'] as const).map(key => <Field key={key} label={key.replaceAll('_', ' ')}><Input value={configuration[key] ?? ''} onChange={e => setConfiguration(c => ({ ...c, [key]: e.target.value || null }))} /></Field>)}
-      {engine === 'mysql' && <Field label="Character set"><select className="cc-control" aria-label="Character set" value={configuration.default_charset} onChange={e => setConfiguration(c => ({ ...c, default_charset: e.target.value }))}>{['utf8mb4', 'utf8', 'latin1', 'ascii'].map(charset => <option key={charset}>{charset}</option>)}</select></Field>}
+      {engine === 'mysql' && <Field label="Character set"><Picker ariaLabel="Character set" value={configuration.default_charset ?? null} options={['utf8mb4', 'utf8', 'latin1', 'ascii'].map(value => ({ value, label: value }))} onValueChange={value => setConfiguration(c => ({ ...c, default_charset: value }))} /></Field>}
     </>}
-    <Field label="Storage access"><select className="cc-control" aria-label="Storage access" value={access} onChange={e => setAccess(e.target.value)}>{['read_write', 'read_only', 'disabled'].map(mode => <option key={mode}>{mode}</option>)}</select></Field>
-    {error && <p role="alert">{error}</p>}<Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save source'}</Button>
-  </form></Card>;
+    <Field label="Storage access"><Picker ariaLabel="Storage access" value={access} options={['read_write', 'read_only', 'disabled'].map(value => ({ value, label: value.replaceAll('_', ' ') }))} onValueChange={setAccess} /></Field>
+    </ApplicationCardGrid>
+    {error && <StatePanel embedded tone="danger" title="Unable to save source">{error}</StatePanel>}
+    </ApplicationPageStack></form></Panel>;
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiErrorDetail, tableQuery, tableRecord, updateRecord } from "../src/apiContract.ts";
+import { apiErrorDetail, schemaGraphRecord, tableQuery, tableRecord, updateRecord, updateRunRecord } from "../src/apiContract.ts";
 
 test("database validation failures and field errors retain useful API messages", () => {
   assert.equal(apiErrorDetail("Install the mssql driver dependencies on the MetaTables API server."),
@@ -48,4 +48,31 @@ test("nested update output and execution details populate list and detail views"
   assert.equal(row.last_update, "2026-09-28");
   assert.equal(row.dependency_links_complete, true);
   assert.deepEqual(row.configuration, { window: 5 });
+});
+
+test("schema graph labels remain renderable when optional table names are missing", () => {
+  const graph = schemaGraphRecord({
+    nodes: [
+      { uid: "named", physical_table_name: "daily_prices", identifier: "prices", time_indexed: true },
+      { uid: "registered", physical_table_name: null, identifier: "instruments", table_kind: "relational" },
+      { uid: "unnamed", physical_table_name: null, identifier: null },
+    ],
+    edges: [],
+  });
+  assert.deepEqual(graph.nodes.map(node => node.label), ["daily_prices", "instruments", "unnamed"]);
+  assert.deepEqual(graph.nodes.map(node => node.kind), ["TimeIndexMetaTable", "MetaTable", "MetaTable"]);
+  for (const node of graph.nodes) assert.ok(node.label.length > 0);
+  assert.deepEqual(schemaGraphRecord({ nodes: [], edges: [] }), { nodes: [], edges: [] });
+});
+
+
+test("catalog runs retain lifecycle, duration and actor without confusing execution with trace", () => {
+  const row = updateRunRecord({ uid: "run", update_time_start: "2026-09-29T10:00:00Z",
+    update_time_end: "2026-09-29T10:00:03Z", error_on_update: false, trace_id: "execution", updated_by_user_uid: "user" });
+  assert.equal(row.duration_seconds, 3);
+  assert.equal(row.result, "success");
+  assert.equal(row.actor_uid, "user");
+  assert.equal(updateRunRecord({ uid: "run", update_time_start: "2026-09-29T10:00:00Z", error_on_update: false }).result, "unfinished");
+  assert.equal(updateRunRecord({ uid: "run", update_time_start: "2026-09-29T10:00:00Z", error_on_update: true }).result, "unfinished");
+  assert.equal(updateRunRecord({ uid: "run", update_time_start: "2026-09-29T10:00:00Z", update_time_end: "2026-09-29T10:00:01Z", error_on_update: true }).result, "error");
 });

@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Badge as SdkBadge, Button } from "@dev-mainsequence/command-center-sdk/controls";
+import { Badge as SdkBadge, Button, useFieldControlProps } from "@dev-mainsequence/command-center-sdk/controls";
 import { ActivityIndicator, ApplicationStatusScreen } from "@dev-mainsequence/command-center-sdk/feedback";
-import { ApplicationCard, ApplicationPageHeader } from "@dev-mainsequence/command-center-sdk/layout";
-import { ResourceDetailShell, ResourcePagination } from "@dev-mainsequence/command-center-sdk/views";
+import { ApplicationCard, ApplicationPageHeader, ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
+import { DataTable, EntitySummary, ResourceDetailShell, ResourcePagination, ResourcePicker, type ResourceDetailShellProps, type ResourcePickerProps } from "@dev-mainsequence/command-center-sdk/views";
+import type { EntitySummary as EntitySummaryModel } from "@dev-mainsequence/command-center-sdk/resource";
 import { ApiError } from "./api";
 
 export type RemoteState<T> =
@@ -60,27 +61,41 @@ export function PageHeading({ eyebrow, title, description, actions }: { eyebrow:
 
 export function Card({ title, description, children, actions, className = "" }: { title?: string; description?: string; children: ReactNode; actions?: ReactNode; className?: string }) {
   const header = title || description || actions
-    ? <div className="metatables-card-header"><div>{title && <h2>{title}</h2>}{description && <p>{description}</p>}</div>{actions}</div>
+    ? <ApplicationPageHeader title={title} titleAs="h2" description={description} actions={actions} />
     : undefined;
-  return <ApplicationCard className={className} contentPadding={className.includes("registry-card") ? "none" : "standard"} header={header}>{children}</ApplicationCard>;
+  return <ApplicationCard className={className} header={header}><ApplicationPageStack>{children}</ApplicationPageStack></ApplicationCard>;
 }
 
-export function StatePanel({ title, children, tone = "neutral", action }: { title: string; children?: ReactNode; tone?: "neutral" | "success" | "danger" | "warning"; action?: ReactNode }) {
-  return <ApplicationCard surface="nested"><div className="metatables-status"><SdkBadge variant={tone === "neutral" ? "secondary" : tone}>{title}</SdkBadge>{children && <p>{children}</p>}{action}</div></ApplicationCard>;
+/** Open sections inside the SDK detail shell, which owns the surrounding surface and inset. */
+export function DetailSection({ title, description, children, actions, titleAs = "h2" }: {
+  title?: string; description?: string; children: ReactNode; actions?: ReactNode; titleAs?: "h2" | "h3";
+}) {
+  return <ApplicationPageStack as="section" data-detail-section>
+    {(title || description || actions) && <ApplicationPageHeader title={title} titleAs={titleAs} description={description} actions={actions} />}
+    <ApplicationPageStack>{children}</ApplicationPageStack>
+  </ApplicationPageStack>;
+}
+
+export function StatePanel({ title, children, tone = "neutral", action, embedded = false }: { title: string; children?: ReactNode; tone?: "neutral" | "success" | "danger" | "warning"; action?: ReactNode; embedded?: boolean }) {
+  if (embedded) return <ApplicationPageStack role={tone === "danger" ? "alert" : tone === "success" ? "status" : undefined}>
+    <div><SdkBadge variant={tone === "neutral" ? "secondary" : tone}>{title}</SdkBadge></div>
+    {children && <div>{children}</div>}
+    {action && <div className="runtime-form-actions">{action}</div>}
+  </ApplicationPageStack>;
+  return <ApplicationCard role={tone === "danger" ? "alert" : tone === "success" ? "status" : undefined}
+    header={<SdkBadge variant={tone === "neutral" ? "secondary" : tone}>{title}</SdkBadge>}>
+    <ApplicationPageStack>{children && <p>{children}</p>}{action}</ApplicationPageStack>
+  </ApplicationCard>;
 }
 
 export function RemoteContent<T>({ state, children, empty, loading = "Loading from MetaTables API…" }: { state: RemoteState<T>; children: (data: T) => ReactNode; empty?: (data: T) => boolean; loading?: string }) {
   if (state.status === "loading") return <ApplicationStatusScreen variant="contained" title="Loading" message={loading} state="loading" />;
   if (state.status === "error") {
     const missing = state.error instanceof ApiError && state.error.missingRoute;
-    return <ApplicationStatusScreen variant="contained" title={missing ? "API capability pending" : "Could not load this view"} message={state.error.message} state="error" action={{ label: "Retry", onSelect: () => window.location.reload() }} />;
+    return <ApplicationStatusScreen variant="contained" title={missing ? "API endpoint unavailable" : "Could not load this view"} message={state.error.message} state="error" action={{ label: "Retry", onSelect: () => window.location.reload() }} />;
   }
-  if (empty?.(state.data)) return <StatePanel title="Nothing here yet">No matching records were returned by the MetaTables API.</StatePanel>;
+  if (empty?.(state.data)) return <StatePanel embedded title="Nothing here yet">No matching records were returned by the MetaTables API.</StatePanel>;
   return <>{children(state.data)}</>;
-}
-
-export function Tabs({ items, active, onChange, children }: { items: { id: string; label: string }[]; active: string; onChange: (id: string) => void; children?: ReactNode }) {
-  return <ResourceDetailShell tabs={items} activeTabId={active} onTabChange={onChange} contentVariant="plain" embedded>{children}</ResourceDetailShell>;
 }
 
 export function Pagination({ count, offset, limit, onChange, noun }: { count: number; offset: number; limit: number; onChange: (offset: number) => void; noun: string }) {
@@ -88,7 +103,29 @@ export function Pagination({ count, offset, limit, onChange, noun }: { count: nu
 }
 
 export function Facts({ items }: { items: { label: string; value: ReactNode }[] }) {
-  return <dl className="metatables-facts">{items.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>;
+  return <DataTable items={items} getId={item => item.label} presentation="auto" columns={[
+    { id: "label", header: "Field", importance: "primary", renderCell: item => item.label },
+    { id: "value", header: "Value", importance: "secondary", renderCell: item => item.value },
+  ]} />;
+}
+
+/** Join the SDK field's accessible wiring to the SDK picker. */
+export function Picker(props: ResourcePickerProps) {
+  const binding = useFieldControlProps({ id: props.id, disabled: props.disabled });
+  return <ResourcePicker {...binding} {...props} />;
+}
+
+export function DetailView<T>({ state, summary, children, onSummaryLinkSelect, ...props }: Omit<ResourceDetailShellProps<T>, "summary" | "children" | "loading" | "error"> & {
+  state: RemoteState<T>;
+  summary: (data: T) => EntitySummaryModel;
+  children: (data: T) => ReactNode;
+  onSummaryLinkSelect?: (href: string) => void;
+}) {
+  return <ResourceDetailShell<T> {...props} loading={state.status === "loading"}
+    error={state.status === "error" ? <ApplicationPageStack><p>{state.error.message}</p><Button onClick={() => window.location.reload()}>Retry</Button></ApplicationPageStack> : undefined}
+    summary={state.status === "ready" ? <EntitySummary summary={summary(state.data)} onLinkSelect={onSummaryLinkSelect} /> : undefined}>
+    {state.status === "ready" ? <ApplicationPageStack>{children(state.data)}</ApplicationPageStack> : undefined}
+  </ResourceDetailShell>;
 }
 
 export function JsonBlock({ value }: { value: unknown }) {

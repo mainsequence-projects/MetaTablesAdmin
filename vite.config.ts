@@ -3,16 +3,17 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig(({ mode }) => {
   const localEnv = loadEnv(mode, process.cwd(), "METATABLES_");
-  const apiTarget = localEnv.METATABLES_API_TARGET || "http://127.0.0.1:8001";
+  const apiTarget = localEnv.METATABLES_API_TARGET || "http://127.0.0.1:18473";
   const localToken = localEnv.METATABLES_LOCAL_TOKEN;
 
   return {
     plugins: [react()],
     server: {
       host: "127.0.0.1",
-      port: 5175,
+      port: 19473,
       strictPort: true,
       cors: false,
+      fs: { deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "**/.local/development-client.json"] },
       proxy: {
         "/api": {
           target: apiTarget,

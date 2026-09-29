@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Field, Input } from "@dev-mainsequence/command-center-sdk/controls";
+import { ApplicationCardGrid } from "@dev-mainsequence/command-center-sdk/layout";
 import { metaTablesApi, type TablePolicies } from "../api";
-import { Button, Card, RemoteContent, StatePanel, useRemote } from "../ui";
+import { Button, DetailSection, RemoteContent, StatePanel, useRemote } from "../ui";
 
 export function PoliciesPanel({ uid }: { uid: string }) {
   const remote = useRemote(`table-policies-${uid}`, (signal) => metaTablesApi.tablePolicies(uid, signal));
@@ -23,14 +24,13 @@ export function PoliciesPanel({ uid }: { uid: string }) {
     finally { setSaving(false); }
   }
 
-  return <RemoteContent state={remote}>{() => value && <Card title="TimeScale policies" description="Compression and retention rules for this time-indexed table.">
-    <div className="policy-grid">{(["compression", "retention"] as const).map((type) => <div className="policy-section" key={type}><h3>{type === "compression" ? "Compression" : "Retention"}</h3>{value[type].supported === false ? <StatePanel title="Unsupported">This policy is unavailable for this table.</StatePanel> : <>
+  return <RemoteContent state={remote}>{() => value && <DetailSection title="TimeScale policies" description="Compression and retention rules for this time-indexed table." actions={<Button variant="primary" pending={saving} disabled={value.compression.supported === false && value.retention.supported === false} onClick={() => void save()}>Save policies</Button>}>
+    <ApplicationCardGrid>{(["compression", "retention"] as const).map((type) => <DetailSection key={type} title={type === "compression" ? "Compression" : "Retention"}>{value[type].supported === false ? <StatePanel embedded title="Unsupported">This policy is unavailable for this table.</StatePanel> : <>
       <Field label={type === "compression" ? "Compress after" : "Drop after"}><Input value={value[type].after ?? ""} placeholder="7 days" onChange={(event) => change(type, "after", event.target.value)} /></Field>
       <Field label="Schedule interval"><Input value={value[type].schedule_interval ?? ""} placeholder="12 hours" onChange={(event) => change(type, "schedule_interval", event.target.value)} /></Field>
       <Field label="Initial start"><Input type="datetime-local" value={value[type].initial_start?.slice(0, 16) ?? ""} onChange={(event) => change(type, "initial_start", event.target.value)} /></Field>
       <Field label="Timezone"><Input value={value[type].timezone ?? "UTC"} onChange={(event) => change(type, "timezone", event.target.value)} /></Field>
-    </>}</div>)}</div>
-    {error && <StatePanel title="Save failed" tone="danger">{error}</StatePanel>}{message && <div role="status"><StatePanel title="Saved" tone="success">{message}</StatePanel></div>}
-    <div className="button-row end"><Button variant="primary" pending={saving} disabled={value.compression.supported === false && value.retention.supported === false} onClick={() => void save()}>{saving ? "Saving…" : "Save policies"}</Button></div>
-  </Card>}</RemoteContent>;
+    </>}</DetailSection>)}</ApplicationCardGrid>
+    {error && <StatePanel embedded title="Save failed" tone="danger">{error}</StatePanel>}{message && <div role="status"><StatePanel embedded title="Saved" tone="success">{message}</StatePanel></div>}
+  </DetailSection>}</RemoteContent>;
 }

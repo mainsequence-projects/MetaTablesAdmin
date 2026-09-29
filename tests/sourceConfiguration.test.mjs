@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sourceDefaults, switchSourceEngine } from '../src/sourceConfiguration.ts';
+import { sourceDefaults, sourceEngines, switchSourceEngine } from '../src/sourceConfiguration.ts';
 
 test('engine changes retain identity but replace incompatible connection options', () => {
   const postgres = { ...sourceDefaults('postgresql'), host: 'db.example.test', database_name: 'analytics', database_user: 'user', password_secret_uid: 'secret-uid', tls_ca_secret_uid: 'ca-uid' };
@@ -20,4 +20,10 @@ test('engine changes retain identity but replace incompatible connection options
   assert.equal(mysql.ssl_mode, 'verify-full');
   assert.equal('encrypt' in mysql, false);
   assert.equal(switchSourceEngine(mysql, 'postgresql').default_schema, 'public');
+  const timescale = switchSourceEngine(mysql, 'timescale_db');
+  assert.equal(timescale.port, 5432);
+  assert.equal(timescale.default_schema, 'public');
+  assert.equal(timescale.ssl_mode, 'require');
+  assert.equal('default_charset' in timescale, false);
+  assert.deepEqual(sourceEngines.map(engine => engine.value), ['postgresql', 'timescale_db', 'mysql', 'mssql']);
 });

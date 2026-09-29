@@ -1,5 +1,5 @@
 /** Translate the MetaTables API's public client schema into view records. */
-import type { DataUpdateDetail, TableDetail, TableRecord } from "./api";
+import type { DataUpdateDetail, ResourceGraph, TableDetail, TableRecord } from "./api";
 
 export type TableApiRecord = Omit<TableDetail, "kind"> & {
   kind?: TableRecord["kind"];
@@ -34,6 +34,44 @@ export function tableQuery(query: Record<string, string | number | undefined>): 
       : kind === "row" ? { time_indexed: false, management_mode: "platform_managed" }
         : kind === "external" ? { management_mode: "external_registered" } : {}),
     ordering: typeof ordering === "string" ? ordering.replace(/created_at/g, "creation_date") : ordering,
+  };
+}
+
+export type SchemaGraphApi = {
+  root_uid?: string;
+  nodes: {
+    uid: string;
+    identifier?: string | null;
+    physical_table_name?: string | null;
+    table_kind?: string;
+    time_indexed?: boolean;
+    namespace?: string | null;
+    physical_schema?: string | null;
+  }[];
+  edges: {
+    source_uid: string;
+    target_uid: string;
+    name?: string;
+    on_delete?: string | null;
+    source_columns?: string[];
+    target_columns?: string[];
+  }[];
+};
+
+/** The schema graph uses catalog UIDs and table names, rather than renderer fields. */
+export function schemaGraphRecord(graph: SchemaGraphApi): ResourceGraph {
+  return {
+    nodes: graph.nodes.map(node => ({
+      id: node.uid,
+      label: node.physical_table_name || node.identifier || node.uid,
+      kind: node.time_indexed || node.table_kind === "time_indexed" ? "TimeIndexMetaTable" : "MetaTable",
+    })),
+    edges: graph.edges.map(edge => ({
+      source: edge.source_uid,
+      target: edge.target_uid,
+      label: edge.name,
+      on_delete: edge.on_delete,
+    })),
   };
 }
 
@@ -81,4 +119,20 @@ export function apiErrorDetail(detail: unknown): string | null {
     return [field ? `${field}: ${item.msg}` : item.msg];
   });
   return errors.length ? errors.join("; ") : null;
+}
+
+/** Adapt the catalog's run history without inventing an update-specific route. */
+export function updateRunRecord(row: {
+  uid: string; update_time_start: string; update_time_end?: string | null;
+  error_on_update: boolean; trace_id?: string | null; updated_by_user_uid?: string | null;
+  root_run_uid?: string | null; table_update_uid?: string; updater_label?: string;
+  graph_availability?: string; outcome?: string; job_run_uid?: string | null;
+}) {
+  const duration = row.update_time_end ? (Date.parse(row.update_time_end) - Date.parse(row.update_time_start)) / 1000 : null;
+  return { uid: row.uid, started_at: row.update_time_start, ended_at: row.update_time_end,
+    duration_seconds: duration !== null && Number.isFinite(duration) ? Math.max(0, duration) : null,
+    result: !row.update_time_end ? "unfinished" : row.error_on_update ? "error" : "success",
+    root_run_uid: row.root_run_uid, table_update_uid: row.table_update_uid, updater_label: row.updater_label,
+    graph_availability: row.graph_availability, outcome: row.outcome, job_run_uid: row.job_run_uid,
+    trace_id: row.trace_id, actor_uid: row.updated_by_user_uid };
 }

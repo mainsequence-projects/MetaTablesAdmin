@@ -1,0 +1,22 @@
+import { AlignLeft, ChartNoAxesCombined, Clock3, FileText, History, LayoutDashboard, List, Network, ScrollText, ShieldCheck, Table2, type LucideIcon } from "lucide-react";
+
+const tabIcons: Record<string, LucideIcon> = {
+  details: FileText,
+  stats: ChartNoAxesCombined,
+  description: AlignLeft,
+  "data-snapshot": List,
+  "ulm-diagram": Network,
+  updates: History,
+  policies: Clock3,
+  permissions: ShieldCheck,
+  graphs: Network,
+  "historical-updates": History,
+  logs: ScrollText,
+  overview: LayoutDashboard,
+  tables: Table2,
+};
+
+export function DetailTabIcon({ id }: { id: string }) {
+  const Icon = tabIcons[id];
+  return Icon ? <Icon size={16} aria-hidden="true" /> : null;
+}

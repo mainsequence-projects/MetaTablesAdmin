@@ -1,18 +1,18 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Input, Field } from "@dev-mainsequence/command-center-sdk/controls";
-import { DataTable, ResourceListPage, ResourcePicker } from "@dev-mainsequence/command-center-sdk/views";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ResourceListPage } from "@dev-mainsequence/command-center-sdk/views";
+import { resolveResourceDetailTabs } from "@dev-mainsequence/command-center-sdk/resource";
+import { Layers3 } from "lucide-react";
 import { metaTablesApi } from "../api";
+import { namespaceDetailTabs } from "../detailTabs";
+import { DetailTabIcon } from "../detailTabIcons";
 import { detailPath } from "../navigation";
-import { namespacesResource } from "../resources";
-import { Badge, Card, display, Facts, formatDate, PageHeading, Pagination, RemoteContent, StatePanel, Tabs, useDebounced, useRemote } from "../ui";
+import { defineNamespaceTablesResource, namespacesResource } from "../resources";
+import { DetailSection, DetailView, display, Facts, formatDate, useRemote } from "../ui";
 import { PermissionsPanel } from "./PermissionsPanel";
 
-const pageSize = 25;
-const detailTabs = [{ id: "overview", label: "Overview" }, { id: "tables", label: "Tables" }, { id: "permissions", label: "Permissions" }];
-
 export function NamespacesPage({ uid, tab }: { uid: string | null; tab: string | null }) {
-  return uid ? <NamespaceDetail uid={uid} requestedTab={tab} /> : <NamespaceRegistry />;
+  return uid ? <NamespaceDetail key={uid} uid={uid} requestedTab={tab} /> : <NamespaceRegistry />;
 }
 
 function NamespaceRegistry() {
@@ -32,24 +32,46 @@ function NamespaceDetail({ uid, requestedTab }: { uid: string; requestedTab: str
   const navigate = useNavigate();
   const remote = useRemote(`namespace-${uid}`, (signal) => metaTablesApi.namespace(uid, signal));
   const namespace = remote.status === "ready" ? remote.data : null;
-  const tab = detailTabs.some((item) => item.id === requestedTab) ? requestedTab! : "overview";
-  return <>
-    <Link to="/namespaces">← Back to namespaces</Link>
-    <PageHeading eyebrow="Namespace detail" title={namespace?.name ?? `Namespace ${uid}`} description={namespace?.description ?? "Tables and permissions registered under this namespace."} actions={namespace && <Badge tone={namespace.visibility === "public" ? "success" : "neutral"}>{display(namespace.visibility, "Visibility unknown")}</Badge>} />
-    <RemoteContent state={remote}>{(detail) => <><div className="detail-identity"><span className="mono">UID {detail.uid}</span><span>{(detail.relational_table_count ?? 0) + (detail.time_index_table_count ?? 0)} registered tables</span></div><Tabs items={detailTabs} active={tab} onChange={(next) => navigate(detailPath("namespaces", uid, next))}>
-      {tab === "overview" && <Card title="Overview"><Facts items={[{ label: "Name", value: detail.name }, { label: "Description", value: display(detail.description) }, { label: "Namespace UID", value: detail.uid }, { label: "Relational tables", value: detail.relational_table_count ?? 0 }, { label: "Time-indexed tables", value: detail.time_index_table_count ?? 0 }, { label: "Created", value: formatDate(detail.created_at) }, { label: "Visibility", value: display(detail.visibility) }]} /></Card>}
+  const { tabs, activeTab } = resolveResourceDetailTabs(namespaceDetailTabs, { activeTabId: requestedTab, resource: namespace });
+  const tab = activeTab?.id;
+  return <DetailView state={remote}
+    loadingTitle="Loading Namespace…"
+    loadingDescription="Loading the selected namespace and its sections."
+    breadcrumbs={[{ id: "namespaces", label: "Namespaces", onSelect: () => navigate("/namespaces") }, { id: uid, label: namespace?.name ?? "Namespace" }]}
+    renderBreadcrumbLead={({ current }) => current ? <Layers3 size={16} aria-hidden="true" /> : null}
+    summary={detail => ({
+      entity: { id: detail.uid, type: "Namespace", title: detail.name },
+      badges: [{ key: "visibility", label: display(detail.visibility, "Visibility unknown"), tone: detail.visibility === "public" ? "success" : "secondary" }],
+      inline_fields: [{ key: "uid", label: "UID", value: detail.uid }],
+      highlight_fields: detail.description ? [{ key: "description", label: "Description", value: detail.description }] : [],
+      stats: [{ key: "tables", label: "Registered tables", display: String((detail.relational_table_count ?? 0) + (detail.time_index_table_count ?? 0)), value: (detail.relational_table_count ?? 0) + (detail.time_index_table_count ?? 0) }],
+    })}
+    tabs={tabs} activeTabId={tab} tabsLabel="Namespace sections"
+    renderTabLead={({ tab }) => <DetailTabIcon id={tab.id} />}
+    onTabChange={next => navigate(detailPath("namespaces", uid, next))}>
+    {detail => <>
+      {tab === "overview" && <DetailSection title="Overview"><Facts items={[{ label: "Name", value: detail.name }, { label: "Description", value: display(detail.description) }, { label: "Namespace UID", value: detail.uid }, { label: "Relational tables", value: detail.relational_table_count ?? 0 }, { label: "Time-indexed tables", value: detail.time_index_table_count ?? 0 }, { label: "Created", value: formatDate(detail.created_at) }, { label: "Visibility", value: display(detail.visibility) }]} /></DetailSection>}
       {tab === "tables" && <NamespaceTables uid={uid} />}
-      {tab === "permissions" && <PermissionsPanel requestKey={`namespace-permissions-${uid}`} load={(signal) => metaTablesApi.namespacePermissions(uid, signal)} save={(value) => metaTablesApi.saveNamespacePermissions(uid, value)} propagate={() => metaTablesApi.propagateNamespacePermissions(uid)} namespace />}
-    </Tabs></>}</RemoteContent>
-  </>;
+      {tab === "permissions" && <PermissionsPanel embedded resourceUid={uid} requestKey={`namespace-permissions-${uid}`} load={signal => metaTablesApi.namespacePermissions(uid, signal)} save={(value, revision) => metaTablesApi.saveNamespacePermissions(uid, value, revision)} namespace />}
+    </>}
+  </DetailView>;
 }
 
 function NamespaceTables({ uid }: { uid: string }) {
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
   const [kind, setKind] = useState("");
-  const [offset, setOffset] = useState(0);
-  const term = useDebounced(search);
-  const remote = useRemote(`namespace-tables-${uid}-${term}-${kind}-${offset}`, (signal) => metaTablesApi.namespaceTables(uid, { search: term, kind, limit: pageSize, offset }, signal));
-  return <Card title="Tables" description="Registered tables across relational and time-indexed kinds."><div className="toolbar"><Field label="Search namespace tables"><Input placeholder="Search namespace tables" value={search} onChange={(event) => { setSearch(event.target.value); setOffset(0); }} /></Field><Field label="Type" controlId="namespace-table-kind"><ResourcePicker id="namespace-table-kind" value={kind} ariaLabel="Table type" options={[{ value: "", label: "All kinds" }, { value: "relational", label: "Relational" }, { value: "time_index", label: "Time-indexed" }]} onValueChange={(value) => { setKind(value); setOffset(0); }} /></Field></div><RemoteContent state={remote} empty={(data) => data.count === 0}>{(data) => <><DataTable items={data.results} getId={(table) => table.uid} presentation="auto" onActivateRow={(table) => navigate(detailPath("tables", table.uid))} columns={[{ id: "kind", header: "Type", renderCell: (table) => <Badge tone={table.kind === "time_index" ? "accent" : "neutral"}>{table.kind === "time_index" ? "Time-indexed" : "Relational"}</Badge> }, { id: "name", header: "Table", renderCell: (table) => <strong>{display(table.identifier ?? table.physical_table_name, table.uid)}</strong> }, { id: "uid", header: "UID", renderCell: (table) => <span className="mono">{table.uid}</span> }, { id: "created", header: "Created", renderCell: (table) => formatDate(table.created_at) }]} /><Pagination count={data.count} offset={offset} limit={pageSize} onChange={setOffset} noun="tables" /></>}</RemoteContent></Card>;
+  const definition = useMemo(() => defineNamespaceTablesResource(uid), [uid]);
+  return <ResourceListPage
+    definition={definition}
+    embedded
+    pageSize={25}
+    tablePresentation="auto"
+    searchable
+    refreshable
+    searchPlaceholder="Search namespace tables"
+    filterDefinitions={[{ id: "kind", label: "Type", value: kind, onChange: setKind, options: [
+      { value: "", label: "All kinds" }, { value: "relational", label: "Relational" }, { value: "time_index", label: "Time-indexed" },
+    ] }]}
+    onRowActivate={table => navigate(detailPath(table.kind === "time_index" ? "time-index-meta-tables" : "tables", table.uid))}
+  />;
 }

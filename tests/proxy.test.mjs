@@ -3,6 +3,28 @@ import { createServer as createHttpServer } from "node:http";
 import { once } from "node:events";
 import test from "node:test";
 import { createServer as createViteServer } from "vite";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+test("Vite cannot serve the private example connection even from an allowed folder", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "metatables-private-client-"));
+  const file = join(folder, ".local", "development-client.json");
+  await mkdir(join(folder, ".local"));
+  await writeFile(file, '{"token":"synthetic-private-value"}', { mode: 0o600 });
+  let vite;
+  try {
+    vite = await createViteServer({ configFile: new URL("../vite.config.ts", import.meta.url).pathname,
+      server: { host: "127.0.0.1", port: 0, open: false, fs: { allow: [folder] } }, logLevel: "silent" });
+    await vite.listen();
+    const response = await fetch(`http://127.0.0.1:${vite.httpServer.address().port}/@fs${file}`);
+    assert.equal(response.status, 403);
+    assert.equal((await response.text()).includes("synthetic-private-value"), false);
+  } finally {
+    await vite?.close();
+    await rm(folder, { recursive: true, force: true });
+  }
+});
 
 test("Vite uses the local token without sending a Git source header", async () => {
   const received = [];

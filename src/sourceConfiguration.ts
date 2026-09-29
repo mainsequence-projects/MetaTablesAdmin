@@ -9,7 +9,7 @@ export type SourceConfiguration = {
 
 export const sourceEngines: { value: SourceEngine; label: string }[] = [
   { value: "postgresql", label: "PostgreSQL" },
-  { value: "timescale_db", label: "TimescaleDB" },
+  { value: "timescale_db", label: "TigerData / TimescaleDB" },
   { value: "mysql", label: "MySQL" },
   { value: "mssql", label: "Microsoft SQL Server (MSSQL)" },
 ];

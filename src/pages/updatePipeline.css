@@ -1,0 +1,128 @@
+/* Canvas geometry adapted from systematic_fixed_income/components/modelGraph.css.
+   Standard cards, controls and the related update list remain SDK-owned. */
+.mt-pipeline {
+  --mt-pipeline-read: var(--primary);
+  --mt-pipeline-write: var(--accent);
+  display: grid;
+  min-width: 0;
+}
+.mt-pipeline__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding-bottom: 0.75rem;
+}
+.mt-pipeline__filters, .mt-pipeline__controls, .mt-pipeline__neighbours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.mt-pipeline__find { flex: 1 1 15rem; min-width: 0; max-width: 24rem; margin-left: auto; }
+.mt-pipeline__matches { color: var(--muted-foreground); font-size: var(--font-size-body-xs); }
+.mt-pipeline__canvas {
+  --xy-background-color: color-mix(in srgb, var(--muted) 45%, var(--card));
+  --xy-background-pattern-dots-color: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+  --xy-minimap-background-color: var(--card);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--muted) 70%, transparent);
+  --xy-minimap-mask-stroke-color: var(--border);
+  --xy-attribution-background-color: var(--card);
+  position: relative;
+  min-width: 0;
+  height: clamp(22rem, 52dvh, 34rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.mt-pipeline .react-flow__attribution { color: var(--muted-foreground); font-size: var(--font-size-body-xs); }
+.mt-pipeline .react-flow__attribution a { color: inherit; }
+.mt-pipeline .react-flow__minimap { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-code); }
+.mt-pipeline__lanes {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 5;
+  height: 30px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  pointer-events: none;
+}
+.mt-pipeline__lanes > span {
+  position: absolute;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 100%;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-eyebrow);
+  text-transform: var(--text-transform-label);
+  white-space: nowrap;
+}
+.mt-pipeline__lanes b { color: var(--foreground); font-variant-numeric: tabular-nums; }
+.mt-pnode {
+  --mt-pipeline-kind: var(--mt-pipeline-read);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--mt-pipeline-kind);
+  border-radius: var(--radius-code);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: opacity 160ms ease, box-shadow 160ms ease;
+}
+.mt-pnode[data-kind="update"] { --mt-pipeline-kind: var(--mt-pipeline-write); }
+.mt-pnode__icon { flex: none; color: var(--mt-pipeline-kind); }
+.mt-pnode__text { display: grid; gap: 0.25rem; min-width: 0; line-height: var(--line-height-compact); }
+.mt-pnode__label, .mt-pnode__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-pnode__label { font-family: var(--font-mono); font-size: var(--font-size-body); letter-spacing: var(--letter-spacing-code); }
+.mt-pnode[data-kind="update"] .mt-pnode__label { font-family: var(--font-sans); font-weight: var(--font-weight-semibold); }
+.mt-pnode__meta { color: var(--muted-foreground); font-size: var(--font-size-body-xs); }
+.mt-pnode__status { flex: none; width: 0.45rem; height: 0.45rem; border-radius: var(--radius-pill); background: var(--muted-foreground); margin-left: auto; }
+.mt-pnode__status[data-status="S"] { background: var(--success); }
+.mt-pnode__status[data-status="E"] { background: var(--danger); }
+.mt-pnode__status[data-status="U"] { background: var(--primary); }
+.mt-pnode__status[data-status="succeeded"] { background: var(--success); }
+.mt-pnode__status[data-status="failed"], .mt-pnode__status[data-status="blocked"] { background: var(--danger); }
+.mt-pnode__status[data-status="running"] { background: var(--primary); }
+.mt-pnode[data-state="dim"] { opacity: 0.2; }
+.mt-pnode[data-state="lit"] { box-shadow: 0 0 0 1px var(--mt-pipeline-kind); }
+.mt-pnode[data-state="selected"] { box-shadow: 0 0 0 2px var(--mt-pipeline-kind), var(--shadow-picker); }
+.mt-pnode[data-root] { border-top-color: var(--mt-pipeline-kind); border-bottom-color: var(--mt-pipeline-kind); border-right-color: var(--mt-pipeline-kind); }
+.mt-pnode__handle.react-flow__handle { width: 1px; min-width: 0; height: 1px; min-height: 0; border: 0; background: transparent; opacity: 0; pointer-events: none; }
+.mt-pipeline .react-flow__node:focus-visible .mt-pnode { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (hover: hover) { .mt-pnode:hover { box-shadow: 0 0 0 1px var(--mt-pipeline-kind); } }
+.mt-pipeline[data-zoom="far"] .mt-pnode { background: color-mix(in srgb, var(--mt-pipeline-kind) 70%, var(--card)); }
+.mt-pipeline[data-zoom="far"] .mt-pnode__icon, .mt-pipeline[data-zoom="far"] .mt-pnode__text { visibility: hidden; }
+.mt-pedge { --mt-pipeline-edge: var(--muted-foreground); }
+.mt-pedge--reads { --mt-pipeline-edge: var(--mt-pipeline-read); }
+.mt-pedge--writes { --mt-pipeline-edge: var(--mt-pipeline-write); }
+.mt-pedge .react-flow__edge-path { stroke: var(--mt-pipeline-edge); stroke-opacity: 0.75; stroke-width: 1.5; }
+.mt-pedge--depends_on .react-flow__edge-path { stroke-dasharray: 5 4; }
+.mt-pedge .react-flow__edge-textbg { fill: var(--card); }
+.mt-pedge .react-flow__edge-text { fill: var(--muted-foreground); font-size: var(--font-size-body-xs); font-family: var(--font-sans); }
+.mt-pipeline__footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; padding-top: 0.625rem; color: var(--muted-foreground); font-size: var(--font-size-body-xs); }
+.mt-pipeline__legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.mt-pipeline__legend > span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.mt-pipeline__legend i { display: inline-block; width: 1.1rem; height: 2px; background: var(--muted-foreground); }
+.mt-pipeline__legend i[data-edge="reads"] { background: var(--mt-pipeline-read); }
+.mt-pipeline__legend i[data-edge="writes"] { background: var(--mt-pipeline-write); }
+.mt-pipeline__legend i[data-edge="depends_on"] { height: 0; border-top: 2px dashed var(--muted-foreground); background: transparent; }
+.mt-pipeline__neighbours { overflow-wrap: anywhere; container-type: inline-size; }
+.mt-pipeline__neighbour-label { display: block; max-width: min(20rem, calc(100cqi - 3rem)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 767px) {
+  .mt-pipeline__find { flex-basis: 100%; max-width: none; margin-left: 0; }
+  .mt-pipeline__canvas { height: 24rem; }
+  .mt-pipeline .react-flow__minimap { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .mt-pnode { transition: none; } .mt-pipeline .react-flow__edge-path { animation: none; } }
