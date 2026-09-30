@@ -10,7 +10,18 @@ export const TimeIndexMetaTableIcon = createLucideIcon("TimeIndexMetaTable", [
 ]);
 
 function MetaTablesMark({ className }: { className?: string }) {
-  return <span className={`metatables-mark ${className ?? ""}`} aria-hidden="true"><span>m</span><i /></span>;
+  return <span className={`metatables-mark ${className ?? ""}`} aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <g strokeWidth="1.5">
+        <path d="m4.8 5.6 4 4.9m-4 7.9 4-4.9M11.8 12h0.7" />
+        <circle cx="3.5" cy="4" r="2.1" />
+        <circle cx="3.5" cy="20" r="2.1" />
+        <circle cx="10" cy="12" r="1.8" />
+      </g>
+      <rect x="12.5" y="8" width="11" height="8" rx="0.65" strokeWidth="1.25" />
+      <path d="M12.5 10.5h11M12.5 13.25h11M16.2 8v8M19.8 8v8" strokeWidth="1.1" />
+    </svg>
+  </span>;
 }
 
 export const metatablesNavigation = defineNavigationApplication({
