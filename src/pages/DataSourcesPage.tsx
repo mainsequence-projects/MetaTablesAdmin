@@ -14,6 +14,8 @@ import { DataSourceConfigurationError, useRuntimeContext } from "../runtimeConte
 import { sourcesResource } from "../resources";
 import { adminPaths, detailPath } from "../navigation";
 import { DetailSection, Facts, StatePanel, Picker, display, useRemote } from "../ui";
+import { RelationImport } from "./RelationImport";
+import { SourceRelationBrowser } from "./RelationRows";
 import { SourceQueryBuilder } from "./SourceQueryBuilder";
 
 export function DataSourcesPage({ uid }: { uid: string | null }) {
@@ -45,6 +47,7 @@ const summaryIcons: Record<string, LucideIcon> = {
 };
 
 function SourceDetailPage({ uid }: { uid: string }) {
+  const { runtime } = useRuntimeContext();
   const navigate = useNavigate();
   const listPath = "/data-sources";
   const [search, setSearch] = useSearchParams();
@@ -85,7 +88,9 @@ function SourceDetailPage({ uid }: { uid: string }) {
       {actionError && <StatePanel embedded title="Action failed" tone="danger">{actionError}</StatePanel>}
       <SourceDetail source={detail.source} summary={detail.summary} setError={setActionError} refresh={() => refresh(value => value + 1)} />
     </ApplicationPageStack>}
-    {detail && activeTab?.id === "query-builder" && <SourceQueryBuilder key={uid} source={detail.source} />}
+    {detail && activeTab?.id === "import" && <RelationImport key={uid} source={detail.source} />}
+    {detail && activeTab?.id === "query-builder" && (runtime.data_source?.uid === uid
+      ? <SourceQueryBuilder key={uid} source={detail.source} /> : <SourceRelationBrowser key={uid} source={detail.source} />)}
   </ResourceDetailShell>;
 }
 

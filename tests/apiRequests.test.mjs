@@ -60,6 +60,20 @@ test("DataSource query transport preserves the API's database error", async () =
     error => error.status === 400 && error.message === message);
 });
 
+test("discovery explains a missing saved credential instead of showing Conflict", async () => {
+  setTransport(async () => Response.json({ detail: { code: "credential_not_found" } }, { status: 409 }));
+  await assert.rejects(api.discoverSourceRelations("copied-source"),
+    error => error.status === 409 && /saved credential is missing/.test(error.message)
+      && /Edit the source/.test(error.message));
+});
+
+test("discovery preserves the credential store's recovery instructions", async () => {
+  const message = "The credential reference is unavailable. Enter a replacement or explicitly import its existing SDK Secret.";
+  setTransport(async () => Response.json({ detail: { code: "credential_not_found", detail: message } }, { status: 503 }));
+  await assert.rejects(api.discoverSourceRelations("copied-source"),
+    error => error.status === 503 && error.message === message);
+});
+
 test("the query builder's table picker filters metadata to the DataSource being viewed", async () => {
   const calls = transport();
   const pending = api.listTables({ data_source_uid: "selected-source", search: "prices", limit: 200, offset: 0 });
@@ -333,4 +347,48 @@ test("table run history includes dependency attempts and filters before paginati
   assert.equal(calls[1].path, "/table-update-runs/dependency-attempt/graph/");
   calls[1].respond({ root_run_uid: "root-invocation", selected_node_id: "update:producer", nodes: [], edges: [] });
   assert.equal((await pending).selected_node_id, "update:producer");
+});
+
+
+test("the import picker lists physical relations with a read-only request", async () => {
+  const calls = transport();
+  const pending = api.discoverSourceRelations("external-source", "sales reports");
+  await Promise.resolve();
+  const url = new URL(calls[0].path, "http://localhost");
+  assert.equal(url.pathname, "/data-sources/external-source/relations/");
+  assert.equal(url.searchParams.get("physical_schema"), "sales reports");
+  assert.equal(calls[0].init.method, "GET");
+  assert.equal(calls[0].init.body, undefined);
+  const data = { data_source_uid: "external-source", physical_schema: "sales reports", relations: [
+    { name: "Orders", relation_kind: "table", meta_table_uid: null, importable: true, blocked_reason: null },
+  ] };
+  calls[0].respond(data);
+  assert.deepEqual(await pending, data);
+});
+
+test("import previews and commits use the API plan contract", async () => {
+  const calls = transport();
+  const command = { data_source_uid: "external-source", relation_names: ["Orders", "Current Orders"], dry_run: true };
+  const preview = api.importRelations(command);
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/meta-tables/import-from-data-source/");
+  assert.deepEqual(JSON.parse(calls[0].init.body), command);
+  calls[0].respond({ committed: false, relations: [] });
+  assert.equal((await preview).committed, false);
+  const commit = api.importRelations({ ...command, dry_run: false });
+  await Promise.resolve();
+  assert.equal(JSON.parse(calls[1].init.body).dry_run, false);
+  calls[1].respond({ committed: true, relations: [] });
+  assert.equal((await commit).committed, true);
+});
+
+test("relation browsing submits structured inputs without arbitrary SQL", async () => {
+  const calls = transport();
+  const selection = { columns: ["Order Total"], order_by: [{ column: "Order Total", direction: "desc" }], limit: 100, offset: 100 };
+  const pending = api.readRelation("view-uid", selection);
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/meta-tables/view-uid/read/");
+  assert.deepEqual(JSON.parse(calls[0].init.body), selection);
+  calls[0].respond({ rows: [{ "Order Total": 12 }], columns: ["Order Total"], has_more: false });
+  assert.deepEqual((await pending).rows, [{ "Order Total": 12 }]);
 });

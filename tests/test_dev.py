@@ -2,7 +2,8 @@
 
 import pytest
 
-from scripts.dev import api_environment, main, sdk_session_environment, vite_environment
+from scripts.dev import main
+from metatables.cli.local import api_environment, sdk_session_environment, vite_environment
 
 
 @pytest.fixture
@@ -186,7 +187,6 @@ def test_local_environment_supplies_socket_and_browser_guard():
 
 def test_hosted_environment_preserves_deployment_settings_and_clears_local_guard():
     deployment = {
-        "METATABLES_CATALOG_DATABASE_URL": "postgresql://catalog.invalid/database",
         "MAINSEQUENCE_AUTH_MODE": "runtime_credential",
         "MAINSEQUENCE_RUNTIME_CREDENTIAL_SECRET": "workload-secret",
     }
@@ -204,7 +204,7 @@ def test_hosted_environment_preserves_deployment_settings_and_clears_local_guard
 def test_hosted_launch_starts_both_services_without_developer_login(monkeypatch, tmp_path, capsys, has_configuration):
     import json
     from pathlib import Path
-    from scripts import dev
+    from metatables.cli import local as dev
 
     (tmp_path / "api/app").mkdir(parents=True)
     (tmp_path / "api/app/main.py").touch()
@@ -255,7 +255,7 @@ def test_hosted_launch_starts_both_services_without_developer_login(monkeypatch,
 @pytest.mark.parametrize("startup_failure", [False, True])
 def test_local_launch_publishes_private_example_connection_and_always_cleans_it(extension_session, monkeypatch, capsys, startup_failure):
     import json
-    from scripts import dev
+    from metatables.cli import local as dev
 
     project = extension_session
     (project / "api/app").mkdir(parents=True)

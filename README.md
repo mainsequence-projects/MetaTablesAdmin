@@ -1,3 +1,14 @@
+<p align="center">
+  <img src="public/favicon.svg" alt="MetaTables logo" width="80" height="80" />
+</p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/branding/mainsequence-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/branding/mainsequence-light.png" />
+    <img src="docs/assets/branding/mainsequence-light.png" alt="Main Sequence logo" width="280" />
+  </picture>
+</p>
+
 # MetaTables Admin
 
 ## Runs and historical graphs
@@ -232,6 +243,8 @@ and foreign keys do not create dependency edges.
 
 `.mainsequence/workflows/metatables-admin.yaml` defines this application as a Vite
 static-site release with SPA routing to `/index.html`, Node 24, and `dist` output.
+Automatic deployment is enabled for every commit to the connected repository
+branch. The browser icon uses the same MetaTables mark as the application.
 The platform supplies the exact trusted host origin as `VITE_COMMAND_CENTER_ORIGIN`
 and sets the gateway's iframe CSP. That variable is platform-reserved; do not
 configure it in frontend environment files or the release's build environment.

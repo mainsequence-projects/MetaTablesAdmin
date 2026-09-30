@@ -14,12 +14,14 @@ import { tablesResource, timeIndexTablesResource } from "../resources";
 import { Badge, Button, DetailSection, DetailView, display, Facts, formatDate, LoadingIndicator, RemoteContent, useRemote } from "../ui";
 import { UlmDiagramTab } from "./ulm/UlmDiagramTab";
 import { PermissionsPanel } from "./PermissionsPanel";
+import { RelationRows } from "./RelationRows";
 import { PoliciesPanel } from "./PoliciesPanel";
 
 const RunExplorer = lazy(() => import("./RunExplorer").then(module => ({ default: module.RunExplorer })));
 const MarkdownDocument = lazy(() => import("../MarkdownDocument").then(module => ({ default: module.MarkdownDocument })));
 
 function kindLabel(table: TableRecord) {
+  if (table.relation_kind === "view") return "View";
   if (table.kind === "time_index") return "Time-indexed";
   if (table.management_mode === "external_registered") return "External";
   return "Row table";
@@ -92,6 +94,7 @@ function TableDetailPage({ uid, requestedTab, resource }: { uid: string; request
     onTabChange={next => navigate(detailPath(resource, uid, next))}>
     {detail => <>
       {tab === "details" && <TableFacts detail={detail} />}
+      {tab === "rows" && <RelationRows uid={uid} />}
       {tab === "description" && <DescriptionTab uid={uid} />}
       {tab === "ulm-diagram" && <UlmDiagramTab table={detail} />}
       {tab === "stats" && <StatsTab uid={uid} />}

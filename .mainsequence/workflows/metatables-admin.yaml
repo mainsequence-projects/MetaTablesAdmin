@@ -12,6 +12,7 @@ resources:
       output_directory: dist
       routing_mode: spa
       spa_entry_file: /index.html
+      automatic_deployment: true
       automatic_redeployment:
         enabled: true
         tag_regex: null

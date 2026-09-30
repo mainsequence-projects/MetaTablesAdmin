@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">MetaTables</title>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#6d49c6"/>
+      <stop offset="1" stop-color="#3656a6"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#background)"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke-width="2.8">
+      <path d="m12 16 11 13m-11 20 11-13"/>
+      <circle cx="11" cy="13" r="4"/>
+      <circle cx="11" cy="51" r="4"/>
+      <circle cx="27" cy="32" r="3.5"/>
+    </g>
+    <rect x="32" y="21" width="24" height="22" rx="2" stroke-width="2.8"/>
+    <path d="M32 28h24M32 35h24M40 21v22M48 21v22" stroke-width="2"/>
+  </g>
+</svg>

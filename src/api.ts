@@ -71,6 +71,7 @@ export type TableRecord = {
   identifier?: string | null;
   physical_schema?: string | null;
   physical_table_name: string;
+  relation_kind?: "table" | "view";
   description?: string | null;
   kind: TableKind;
   management_mode?: "platform_managed" | "external_registered";
@@ -113,6 +114,7 @@ export type TableForeignKey = {
   on_delete?: string | null;
 };
 export type TableDetail = TableRecord & {
+  permissions?: { read: boolean; write: boolean; manage_access: boolean };
   columns?: TableColumn[];
   indexes?: TableIndex[];
   foreign_keys?: TableForeignKey[];
@@ -413,10 +415,34 @@ export type SourceQueryResult = {
 };
 export type SourceRecord = {
   uid: string; display_name: string; class_type: string; status: string;
-  storage_access_mode: string; is_default: boolean; can_manage: boolean;
+  storage_access_mode: string; is_default: boolean; can_manage: boolean; can_import?: boolean;
   configuration: SourceConfiguration | null;
 };
+export type RelationImportRequest = {
+  data_source_uid: string; physical_schema?: string | null; namespace?: string | null;
+  relation_names?: string[]; exclude_relation_names?: string[]; include_views?: boolean;
+  follow_foreign_keys?: boolean; refresh_existing?: boolean; dry_run?: boolean; strict?: boolean;
+};
+export type DiscoveredRelation = {
+  name: string; relation_kind: "table" | "view"; meta_table_uid: string | null;
+  importable: boolean; blocked_reason: string | null;
+};
+export type RelationDiscovery = { data_source_uid: string; physical_schema: string; relations: DiscoveredRelation[] };
+export type RelationImportResult = {
+  ok: boolean; committed: boolean; dry_run: boolean; counts: Record<string, number>;
+  relations: { name: string; relation_kind: string | null; status: string; error?: string; meta_table_uid: string | null }[];
+  warnings: { code: string; name: string }[]; stale: { name: string; meta_table_uid: string; reason: string }[];
+};
+export type RelationReadRequest = {
+  columns?: string[]; filters?: { column: string; operator?: "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "in" | "is_null"; value: unknown }[];
+  order_by?: { column: string; direction: "asc" | "desc" }[]; limit?: number; offset?: number;
+};
+export type RelationRowsResult = { rows: Record<string, unknown>[]; columns: string[]; has_more: boolean; limit: number; offset: number };
 export const metaTablesApi = {
+  discoverSourceRelations: (uid: string, physicalSchema?: string, signal?: AbortSignal) => request<RelationDiscovery>("GET", `data-sources/${encodeURIComponent(uid)}/relations/`, { query: { physical_schema: physicalSchema || undefined }, signal }),
+  importRelations: (body: RelationImportRequest, signal?: AbortSignal) => request<RelationImportResult>("POST", "meta-tables/import-from-data-source/", { body, signal }),
+  refreshRelation: (uid: string) => request<{ ok: boolean }>("POST", `meta-tables/${encodeURIComponent(uid)}/introspect/`, { body: {} }),
+  readRelation: (uid: string, body: RelationReadRequest, signal?: AbortSignal) => request<RelationRowsResult>("POST", `meta-tables/${encodeURIComponent(uid)}/read/`, { body, signal }),
   configureRuntimeSource: (body: RuntimeSourceInput) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/configure/", { body }),
   selectHostedSource: (uid: string, localMode: boolean) => request<RuntimeBootstrap>("POST", localMode ? "runtime-bootstrap/hosted/select/" : "runtime-bootstrap/select/", { body: { source_uid: uid } }),
   migrateRuntimeSource: () => request<RuntimeBootstrap>("POST", "runtime-bootstrap/migrate/"),

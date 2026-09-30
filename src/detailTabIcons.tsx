@@ -2,6 +2,8 @@ import { AlignLeft, ChartNoAxesCombined, Clock3, Code2, FileText, History, Layou
 
 const tabIcons: Record<string, LucideIcon> = {
   details: FileText,
+  rows: Table2,
+  import: Table2,
   stats: ChartNoAxesCombined,
   description: AlignLeft,
   "ulm-diagram": Network,

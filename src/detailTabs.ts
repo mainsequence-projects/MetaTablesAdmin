@@ -3,6 +3,7 @@ import type { DataUpdateDetail, NamespaceRecord, SourceRecord, TableDetail } fro
 
 export const tableDetailTabs: readonly ResourceDetailTabDefinition<TableDetail>[] = [
   { id: "details", label: "Details" },
+  { id: "rows", label: "Rows", isVisible: table => table.kind === "relational" },
   { id: "stats", label: "Stats", isVisible: table => table.kind === "time_index" },
   { id: "description", label: "Description" },
   { id: "ulm-diagram", label: "ULM diagram" },
@@ -26,5 +27,6 @@ export const namespaceDetailTabs: readonly ResourceDetailTabDefinition<Namespace
 
 export const sourceDetailTabs: readonly ResourceDetailTabDefinition<SourceRecord>[] = [
   { id: "details", label: "Details" },
+  { id: "import", label: "Import", isVisible: source => source.can_import === true },
   { id: "query-builder", label: "Query builder" },
 ];
