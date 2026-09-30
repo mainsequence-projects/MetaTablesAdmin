@@ -4,7 +4,6 @@ import { Button, Field } from "@dev-mainsequence/command-center-sdk/controls";
 import { ApplicationPageHeader, ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import { metaTablesApi } from "./api";
 import { DataSourceTypeIcon, sourceEngineLabel, sourceEnginePickerIcon } from "./DataSourceTypeIcon";
-import { adminPaths } from "./navigation";
 import { useRuntimeContext } from "./runtimeContext";
 import { runtimeMigrationStatus } from "./runtimeMigrationStatus";
 import { sourceEngines } from "./sourceConfiguration";
@@ -17,7 +16,7 @@ export function RuntimeHostedSourceSelection({ disabled = false }: { disabled?: 
   const bootstrap = runtime.local_mode ? runtime.hosted_bootstrap : runtime.bootstrap;
   const [selectedUid, setSelectedUid] = useState(bootstrap?.selected_source_uid ?? "");
   const [revision, setRevision] = useState(0);
-  const sources = useRemote(`runtime-source-candidates-${revision}`, signal => metaTablesApi.runtimeSources("", 0, signal, 500));
+  const sources = useRemote(`data-sources-${revision}`, signal => metaTablesApi.sources("", 0, signal, 500));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const busy = pending || disabled;
@@ -35,12 +34,12 @@ export function RuntimeHostedSourceSelection({ disabled = false }: { disabled?: 
   }
   return <ApplicationPageStack as="section" aria-label="Hosted runtime DataSource">
     <ApplicationPageHeader title="2. DataSource" titleAs="h3"
-      description="Register connections in Data Sources, then select one here for the hosted runtime. Selection and runtime switching are separate actions."
+      description="Register a DataSource in Data Sources, then select one here for the hosted runtime. Selection and runtime switching are separate actions."
       actions={<Badge tone={bootstrap?.active ? "success" : bootstrap?.error ? "danger" : "neutral"}>{status}</Badge>} />
     {sources.status === "error" && <p role="alert">Unable to load registered DataSources: {sources.error.message}</p>}
     {sources.status === "loading" && <p className="muted">Loading registered DataSources…</p>}
-    {sources.status === "ready" && choices.length === 0 && <p className="muted">No eligible hosted DataSources are registered yet. Add a hosted connection in Data Sources, then return here to select it.</p>}
-    <Field label="Hosted DataSource" description="Registered hosted connections with read/write access are available for this runtime.">
+    {sources.status === "ready" && choices.length === 0 && <p className="muted">No eligible hosted DataSources are registered yet. Add a DataSource in Data Sources, then return here to select it.</p>}
+    <Field label="Hosted DataSource" description="Registered DataSources with read/write access are available for this runtime.">
       <Picker fullWidth ariaLabel="Hosted DataSource" disabled={busy || sources.status !== "ready"}
         value={selectedUid} options={[{ value: "", label: "Select a registered DataSource" },
           ...choices.map(source => ({ value: source.uid, label: `${source.display_name} · ${sourceEngineLabel(source.class_type)} · ${source.status}`, icon: sourceEnginePickerIcon(source.class_type) }))]}
@@ -50,7 +49,7 @@ export function RuntimeHostedSourceSelection({ disabled = false }: { disabled?: 
         onValueChange={setSelectedUid} />
     </Field>
     <div className="runtime-form-actions">
-      <Button onClick={() => navigate(`${adminPaths.dataSources}/new?scope=runtime`)}>Add DataSource</Button>
+      <Button onClick={() => navigate("/data-sources/new")}>Add DataSource</Button>
       <Button disabled={busy} onClick={() => setRevision(value => value + 1)}>Refresh list</Button>
       <Button variant="primary" pending={pending} disabled={busy || !selected}
         onClick={() => void perform(() => metaTablesApi.selectHostedSource(selectedUid, runtime.local_mode))}>Select DataSource</Button>

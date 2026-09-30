@@ -57,3 +57,12 @@ test("namespace, update and DataSource sections have stable defaults and deep li
     }
   }
 });
+
+test("removed snapshot deep links resolve to details for every table kind", () => {
+  for (const resource of [null, { kind: "row" }, { kind: "time_index" }]) {
+    const resolved = resolveResourceDetailTabs(tableDetailTabs, { activeTabId: "data-snapshot", resource });
+    assert.equal(resolved.activeTab.id, "details");
+    assert.equal(resolved.fallback, true);
+    assert.equal(resolved.tabs.some(tab => tab.id === "data-snapshot"), false);
+  }
+});

@@ -22,6 +22,77 @@ function transport() {
   return calls;
 }
 
+test("registration sends the entered password separately from persistent configuration", async () => {
+  const calls = transport();
+  const configuration = { host: "db.test", database_name: "analytics", database_user: "reader", password_secret_uid: null };
+  const pending = api.createSource({ display_name: "Analytics", class_type: "postgresql", configuration, password: "test-only-password" });
+  await Promise.resolve();
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(calls[0].path, "/data-sources/");
+  assert.equal(body.password, "test-only-password");
+  assert.equal("password" in body.configuration, false);
+  const source = { uid: "registered-source", configuration: { ...configuration, password_secret_uid: "stored-secret" } };
+  calls[0].respond(source);
+  assert.deepEqual(await pending, source);
+});
+
+test("DataSource queries bind the detail's UID and paginate through the governed SQL endpoint", async () => {
+  const calls = transport();
+  const pending = api.runSourceQuery("selected-source", "SELECT 1 AS value;", 25, 50);
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/meta-tables/run-query/");
+  assert.equal(calls[0].init.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    data_source_uid: "selected-source", sql: "SELECT 1 AS value;",
+    limits: { max_rows: 25, offset: 50, statement_timeout_ms: 15000 },
+  });
+  const result = { ok: true, results: [{ value: 1 }], row_count: 1, max_rows: 25, truncated: false, error: null };
+  calls[0].respond(result);
+  assert.deepEqual(await pending, result);
+});
+
+test("DataSource query transport preserves the API's database error", async () => {
+  const message = "access to sqlite_master.name is prohibited";
+  setTransport(async () => Response.json({ detail: {
+    code: "compiled_sql_database_error", detail: message,
+  } }, { status: 400 }));
+  await assert.rejects(api.runSourceQuery("selected-source", "SELECT name FROM sqlite_master", 25),
+    error => error.status === 400 && error.message === message);
+});
+
+test("the query builder's table picker filters metadata to the DataSource being viewed", async () => {
+  const calls = transport();
+  const pending = api.listTables({ data_source_uid: "selected-source", search: "prices", limit: 200, offset: 0 });
+  await Promise.resolve();
+  const url = new URL(calls[0].path, "http://localhost");
+  assert.equal(url.searchParams.get("data_source_uid"), "selected-source");
+  assert.equal(url.searchParams.get("q"), "prices");
+  calls[0].respond({ count: 0, results: [] });
+  await pending;
+});
+
+test("a new DataSource tests its draft settings through a separate probe without registration", async () => {
+  const calls = transport();
+  const draft = { display_name: "Analytics", class_type: "postgresql", password: "transient-test-value",
+    configuration: { host: "database.example.test", database_name: "analytics", database_user: "reader", port: 5432 } };
+  const pending = api.testSourceConnection(draft);
+  await Promise.resolve();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, "/data-sources/test-connection/");
+  assert.equal(calls[0].init.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].init.body), draft);
+  calls[0].respond({ ok: true, message: "Connection succeeded." });
+  assert.equal((await pending).ok, true);
+});
+
+for (const status of [404, 405]) {
+  test(`an unavailable draft connection endpoint (${status}) explains the API update needed`, async () => {
+    setTransport(async () => Response.json({ detail: status === 405 ? "Method Not Allowed" : "Not Found" }, { status }));
+    await assert.rejects(api.testSourceConnection({ display_name: "Preview", class_type: "postgresql", configuration: {} }),
+      error => error.status === status && /Restart or update the API/.test(error.message));
+  });
+}
+
 test("the Description tab requests the mounted table document endpoint", async () => {
   const calls = transport();
   const pending = api.tableDescription("daily-close");
@@ -243,4 +314,23 @@ test("Runs selects a root invocation and retrieves only its saved graph and exac
   calls[3].respond({ rows: [], availability: "expired", next_cursor: null, truncated: false });
   assert.equal((await logs).availability, "expired");
   assert.equal(selected.state, "blocked");
+});
+
+test("table run history includes dependency attempts and filters before pagination", async () => {
+  const calls = transport();
+  const history = api.tableRuns("daily-close", 25, undefined, 25);
+  await Promise.resolve();
+  const url = new URL(calls[0].path, "https://example.test");
+  assert.equal(url.pathname, "/table-update-runs/");
+  assert.equal(url.searchParams.get("output_table_uid"), "daily-close");
+  assert.equal(url.searchParams.get("offset"), "25");
+  assert.equal(url.searchParams.has("root_only"), false);
+  calls[0].respond({ count: 26, results: [{ uid: "dependency-attempt", root_run_uid: "root-invocation", table_update_uid: "producer",
+    update_time_start: "2026-09-29T10:00:00Z", update_time_end: "2026-09-29T10:00:02Z", error_on_update: false }] });
+  const attempt = (await history).results[0];
+  const pending = api.runGraph(attempt.uid);
+  await Promise.resolve();
+  assert.equal(calls[1].path, "/table-update-runs/dependency-attempt/graph/");
+  calls[1].respond({ root_run_uid: "root-invocation", selected_node_id: "update:producer", nodes: [], edges: [] });
+  assert.equal((await pending).selected_node_id, "update:producer");
 });

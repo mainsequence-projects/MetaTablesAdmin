@@ -5,6 +5,13 @@ body { margin: 0; background: var(--background); color: var(--foreground); font-
 
 /* Form actions wrap together while SDK controls retain their intrinsic sizing. */
 .runtime-form-actions { display: flex; flex-wrap: wrap; gap: var(--application-card-header-gap); }
+.source-form-fields { max-width: 58rem; }
+.source-password-control { position: relative; }
+.source-password-action { position: absolute; inset-block: 0; inset-inline-end: 0; display: flex; align-items: center; }
+.source-registration-form { max-width: 61rem; }
+.runs-history > section > header { flex-direction: column; align-items: stretch; gap: var(--application-section-gap); }
+.runs-filters { width: 100%; max-width: 56rem; }
+.source-query-actions { display: flex; flex-wrap: wrap; align-items: end; gap: var(--application-card-header-gap); }
 
 /* The application mark is the only branded artwork owned by this site. */
 .metatables-mark { display: inline-grid; place-items: center; flex: none; width: 1.75rem; height: 1.75rem; border-radius: var(--radius); background: linear-gradient(145deg, var(--accent), var(--primary)); color: var(--primary-foreground); }

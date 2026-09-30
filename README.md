@@ -2,10 +2,19 @@
 
 ## Runs and historical graphs
 
-**Runs** lists root updater invocations with updater, outcome and start-time
-filters. `/runs/{run_uid}` opens the saved execution graph; selecting a node
-shows its own state, timing and exact attempt logs. Historical-update rows link
-to the same view. The definition graph continues to show current relationships
+**Runs** places timestamped executions on the left and the selected run's saved
+graph on the right, with updater, outcome and start-time filters.
+`/runs/{run_uid}` preserves the selection. The table **Updates** tab and updater
+**Historical Updates** tab use the same view scoped to their resource, including
+dependency attempts. Selecting a node keeps every visible table connection on the
+canvas and shows its state, timing, dependency links and exact attempt logs.
+Direct links on graph nodes open updater and table details. **Hide history**
+expands the graph while preserving selection and pagination. The selected node
+inspector sits inside the graph at the lower left. **Run logs** remains visible
+in a full-width section below the graph, showing the selected updater's exact
+attempt with filtering, refresh and pagination. Selecting a table or closing the
+inspector shows the root updater's logs, explicitly labeled with its name and
+attempt UID. The definition graph continues to show current relationships
 and explicitly labels latest state, with a link to the latest recorded run.
 
 Completed graphs do not change when an updater runs again or dependencies are
@@ -21,8 +30,11 @@ Settings after restart. Scheduling remains with Main Sequence Jobs.
 
 The application initializes through the MetaTables API's `/runtime-context/`.
 **Settings** shows the API mode and endpoint, the verified hosted Environment,
-and its DataSource setting. Settings remains available before any database exists;
-table, update and Data Sources views wait for initialization. Configure the runtime
+and its DataSource setting. Settings and Admin Data Sources remain available before
+initialization. Data Sources shows the selected runtime connection and its migration
+status, and allows hosted connections to be registered. Tables and updates wait
+for initialization. A configured SQLite file with pending migrations
+is shown as requiring migrations, rather than as an absent DataSource. Configure the runtime
 DataSource, check it, and explicitly run MetaTables migrations or select an already
 initialized database. Local uses one SQLite file; hosted uses PostgreSQL/TimescaleDB.
 That database contains both system records and user tables. Startup never migrates it.
@@ -148,7 +160,7 @@ connection error. No sample records or alternate data backend are used.
 The pages already implement:
 
 - DataSource registration and configuration for PostgreSQL, TimescaleDB, MySQL and Microsoft SQL Server (MSSQL), connection validation, disablement, and removal. Default selection is available for table-capable engines. MySQL and MSSQL currently support connection management; their table read/write/migration adapters are not yet implemented. Credentials are referenced by ordinary platform Secret UIDs; the form never accepts secret values. The API enforces admin-only management and protects referenced sources. Local SQLite paths are configured in Admin Settings.
-- Table list search, kind and namespace filters, server sort and pagination; detail metadata, description, snapshot, graph, stats, updates, Timescale policies, permissions, and server-advertised action preflight.
+- Table list search, kind and namespace filters, server sort and pagination; detail metadata, description, graph, stats, updates, Timescale policies, permissions, and server-advertised action preflight.
 - Data Update list and detail, dependency graph, historical runs, and bounded logs.
 - Namespace list and detail, combined table inventory, and admin-managed grants with live inheritance.
 - URL-backed detail tabs, cross-links, loading/empty/error states, and a shared typed API client.
@@ -157,8 +169,8 @@ The final API paths, response schemas, permission flags, and hosted identity exc
 
 ## Manage DataSources
 
-As an Organization admin, open **Admin → Data Sources → Register source** at
-`/admin/data-sources/new`. Select PostgreSQL, TimescaleDB, MySQL,
+As an Organization admin, open **MetaTables → Data Sources → Add DataSource** at
+`/data-sources/new`. Select PostgreSQL, TimescaleDB, MySQL,
 or Microsoft SQL Server, then enter the host, database, username and password
 Secret UID. The form selects the engine's default port and schema and displays
 only its TLS options. MySQL uses its database name as the schema; MSSQL defaults
@@ -201,26 +213,43 @@ tab bodies with open `DetailSection` / `ApplicationPageStack` sections. Do not
 nest `ApplicationCard` or custom card frames inside that surface; embedded
 feedback also stays flat.
 
-The table **Updates** tab pairs its SDK producer list with a React Flow pipeline.
-Its lanes, themed nodes, search, minimap and lineage inspector are adapted from the
-fixed-income strategy diagram in `website-mocks`. The graph reads registered
-table/update links from `/meta-tables/{uid}/update-graph/`; execution priority and
-foreign keys do not create dependency edges. Selecting a node traces its inputs
-and consumers, and the inspector opens the corresponding table or update detail.
-The Data Update **Graphs** tab uses the same pipeline component and endpoint,
-with the output table UID returned by the update detail. The SDK **Dependency
-direction** picker offers **Upstream**, **Downstream**, and **Both**, and requests
-that direction from the API. Table Updates roots the graph at the table; Data
-Update Graphs also passes `update_uid` to root it at the current producer, so its
-downstream view includes direct update consumers as well as table readers. Both
-views share the authorized graph model, layout, and interactions. An update without
-an output table displays an error instead of issuing a graph request.
+The table **Updates** tab reads paginated attempts from
+`/table-update-runs/?output_table_uid=...` and the selected attempt's saved graph
+from `/table-update-runs/{run_uid}/graph/`. Dependency attempts resolve to their
+root invocation with the corresponding node selected. Changing selection clears
+the previous node and logs; refresh retains the selected invocation. On narrow
+screens, the run list stacks above the graph.
+
+The Data Update **Dependencies Graphs** tab retains the current-definition graph
+from `/meta-tables/{uid}/update-graph/`, with an Upstream / Downstream / Both
+picker. Historical and definition views share the React Flow renderer, themed
+nodes, table links, minimap and lineage inspector. Selecting a node highlights
+lineage without hiding upstream producers' output tables. The inspector separates
+update dependencies, input tables, output tables and consumers. Execution priority
+and foreign keys do not create dependency edges.
 
 ## Embedded deployment
 
-Build the site with `VITE_COMMAND_CENTER_ORIGIN` set to the exact trusted host origin and `VITE_METATABLES_RESOURCE_RELEASE_UID` set to the deployed MetaTables FastAPI ResourceRelease UID. The child site waits for the SDK's validated iframe context, inherits the host's SDK theme, and sends its MetaTables requests through `fetchFastApi`. A deployed direct link without that host context displays an unavailable state. The Vite development proxy and its `METATABLES_*` variables are local server settings.
+`.mainsequence/workflows/metatables-admin.yaml` defines this application as a Vite
+static-site release with SPA routing to `/index.html`, Node 24, and `dist` output.
+The platform supplies the exact trusted host origin as `VITE_COMMAND_CENTER_ORIGIN`
+and sets the gateway's iframe CSP. That variable is platform-reserved; do not
+configure it in frontend environment files or the release's build environment.
 
-The SDK's pinned `0.5.6` skills are installed in `.agents/skills/command-center`. Use those instructions and the public SDK exports for any new navigation, layout, controls, theme, feedback, or resource view. Keep the existing MetaTables mark as the one local visual asset.
+The child waits for the SDK's validated iframe context, inherits every host theme
+update, and sends MetaTables requests through delegated `fetchFastApi`. Changing
+the host user remounts the API runtime and clears the previous person's page state.
+A deployed direct link without host context displays an unavailable state. The
+Vite development proxy and its `METATABLES_*` variables are local server settings.
+
+The target MetaTables API release is separate from the host origin. This binding
+currently uses the public `VITE_METATABLES_RESOURCE_RELEASE_UID` value. It must
+identify an existing MetaTables FastAPI release; an undeployed API cannot receive
+delegated requests. Local Vite development requires neither embed value. Once a
+stable API release exists, its UID can be owned by the application in source, as
+the Mexico Fund Competition site does, rather than requiring a per-build setting.
+
+The SDK's pinned `0.5.10` skills are installed in `.agents/skills/command-center`. Use those instructions and the public SDK exports for any new navigation, layout, controls, theme, feedback, or resource view. Keep the existing MetaTables mark as the one local visual asset.
 
 ## Security model
 
@@ -236,13 +265,17 @@ Namespace inheritance is displayed separately. Effective-access checks and durab
 audit history are available in disclosures below the matrix. Missing directory
 entries remain visible and removable as unavailable users/teams, never UUID labels.
 Global Security recovers orphaned tables and administers namespace grants.
-The Admin menu is absent for non-admins, including in the mobile drawer. Admins
-use `/admin/settings`, `/admin/security`, and `/admin/data-sources`; creation and
-editing live under `/admin/data-sources/new` and `/admin/data-sources/{uid}`.
-Catalog DataSource pages at `/data-sources` and `/data-sources/{uid}` are read-only.
-Old `/settings`, `/security`, and `/data-sources/new` links redirect to the guarded
-admin routes, retaining query parameters and fragments. A route-level guard
-rejects all non-admin `/admin/*` visits before mounting their page components.
+Data Sources appears once in the MetaTables menu, at `/data-sources` with details
+at `/data-sources/{uid}`. All authenticated users can browse sources, including
+before runtime initialization. Admins register and manage sources in these same
+pages; there is no separate administration view. The old `/admin/data-sources/*`
+routes are removed and do not redirect.
+
+The Admin menu is absent for non-admins, including in the mobile drawer. It contains
+`/admin/settings` and `/admin/security`. Selecting the runtime DataSource in Settings
+remains admin-only. Old `/settings` and `/security` links redirect to these guarded
+routes, retaining query parameters and fragments. A route-level guard rejects
+non-admin visits before mounting their page components.
 Settings remains available to admins before initialization. Non-admins with an
 unconfigured runtime see a request to contact an admin, without a Settings action.
 

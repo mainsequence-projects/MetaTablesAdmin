@@ -1,7 +1,7 @@
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
-import { DataTable, ResourceActionConfirmationDialog, ResourceListPage, ResourceToolbar } from "@dev-mainsequence/command-center-sdk/views";
+import { DataTable, ResourceActionConfirmationDialog, ResourceListPage } from "@dev-mainsequence/command-center-sdk/views";
 import { resolveResourceDetailTabs } from "@dev-mainsequence/command-center-sdk/resource";
 import { Table2 } from "lucide-react";
 import { metaTablesApi, type ResourceAction, type TableDetail, type TableRecord } from "../api";
@@ -10,13 +10,13 @@ import { DetailTabIcon } from "../detailTabIcons";
 import { JsonTreeViewer, type JsonTreeViewerHandle } from "../JsonTreeViewer";
 import { TimeIndexMetaTableIcon } from "../metatablesNavigation";
 import { detailPath, resourceLabels, type TableResource } from "../navigation";
-import { defineTableUpdatesResource, tablesResource, timeIndexTablesResource } from "../resources";
-import { Badge, Button, DetailSection, DetailView, display, Facts, formatDate, LoadingIndicator, Pagination, RemoteContent, useRemote } from "../ui";
+import { tablesResource, timeIndexTablesResource } from "../resources";
+import { Badge, Button, DetailSection, DetailView, display, Facts, formatDate, LoadingIndicator, RemoteContent, useRemote } from "../ui";
 import { UlmDiagramTab } from "./ulm/UlmDiagramTab";
 import { PermissionsPanel } from "./PermissionsPanel";
 import { PoliciesPanel } from "./PoliciesPanel";
 
-const UpdatePipelinePanel = lazy(() => import("./UpdatePipelinePanel").then(module => ({ default: module.UpdatePipelinePanel })));
+const RunExplorer = lazy(() => import("./RunExplorer").then(module => ({ default: module.RunExplorer })));
 const MarkdownDocument = lazy(() => import("../MarkdownDocument").then(module => ({ default: module.MarkdownDocument })));
 
 function kindLabel(table: TableRecord) {
@@ -93,7 +93,6 @@ function TableDetailPage({ uid, requestedTab, resource }: { uid: string; request
     {detail => <>
       {tab === "details" && <TableFacts detail={detail} />}
       {tab === "description" && <DescriptionTab uid={uid} />}
-      {tab === "data-snapshot" && <SnapshotTab uid={uid} />}
       {tab === "ulm-diagram" && <UlmDiagramTab table={detail} />}
       {tab === "stats" && <StatsTab uid={uid} />}
       {tab === "updates" && <TableUpdatesTab uid={uid} />}
@@ -155,17 +154,6 @@ function DescriptionTab({ uid }: { uid: string }) {
   return <DetailSection title="Generated description" description="Search document derived from the registered table contract."><RemoteContent state={remote}>{(value) => <Suspense fallback={<LoadingIndicator label="Loading description…" />}><MarkdownDocument content={value.content || "No description generated."} /></Suspense>}</RemoteContent></DetailSection>;
 }
 
-function SnapshotTab({ uid }: { uid: string }) {
-  const [offset, setOffset] = useState(0);
-  const [filter, setFilter] = useState("");
-  const remote = useRemote(`table-snapshot-${uid}-${offset}`, (signal) => metaTablesApi.tableSnapshot(uid, offset, signal));
-  return <DetailSection title="Data Snapshot" description="A bounded, permission-checked preview of physical rows."><RemoteContent state={remote}>{(data) => {
-    const columns = data.columns ?? [];
-    const rows = data.rows.filter((row) => !filter || JSON.stringify(row).toLowerCase().includes(filter.toLowerCase()));
-    return <><ResourceToolbar count={data.rows.length} itemLabel="loaded rows" searchable searchPlaceholder="Filter loaded rows" searchValue={filter} onSearchChange={setFilter} /><DataTable items={rows.map((row, index) => ({ row, index }))} getId={(item) => item.index} presentation="auto" emptyContent="No matching rows in this page." columns={columns.map((column) => ({ id: column, header: column, renderCell: (item: { row: Record<string, unknown>; index: number }) => display(item.row[column], "null") }))} /><Pagination count={data.count ?? data.rows.length + offset} offset={offset} limit={50} onChange={setOffset} noun="rows" /></>;
-  }}</RemoteContent></DetailSection>;
-}
-
 function StatsTab({ uid }: { uid: string }) {
   const [refresh, setRefresh] = useState(0);
   const viewerRef = useRef<JsonTreeViewerHandle>(null);
@@ -178,11 +166,5 @@ function StatsTab({ uid }: { uid: string }) {
 }
 
 function TableUpdatesTab({ uid }: { uid: string }) {
-  const navigate = useNavigate();
-  const definition = useMemo(() => defineTableUpdatesResource(uid), [uid]);
-  return <ApplicationPageStack>
-    <Suspense fallback={<DetailSection title="Update pipeline">Loading pipeline visualization…</DetailSection>}><UpdatePipelinePanel uid={uid} /></Suspense>
-    <ResourceListPage definition={definition} embedded pageSize={25} tablePresentation="auto" refreshable
-      onRowActivate={update => navigate(detailPath("data-updates", update.uid))} />
-  </ApplicationPageStack>;
+  return <Suspense fallback={<LoadingIndicator label="Loading run history…" />}><RunExplorer key={uid} tableUid={uid} /></Suspense>;
 }

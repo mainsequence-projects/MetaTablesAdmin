@@ -1,0 +1,30 @@
+.mt-runs { display: grid; grid-template-columns: minmax(19rem, 23rem) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.mt-runs__history { min-width: 0; border-right: 1px solid var(--border); padding-right: 1rem; }
+.mt-runs__count { color: var(--muted-foreground); font-size: var(--font-size-body-sm); padding-bottom: 0.75rem; }
+.mt-runs__list { display: grid; gap: 0.125rem; list-style: none; margin: 0; padding: 0; max-height: 65dvh; overflow-y: auto; }
+.mt-runs__item { width: 100%; }
+.mt-runs__item-content { display: grid; grid-template-columns: 0.4rem auto minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; width: 100%; text-align: left; font-size: var(--font-size-body-xs); font-variant-numeric: tabular-nums; }
+.mt-runs__item-content time { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-runs__source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--font-weight-semibold); }
+.mt-runs__duration { color: var(--muted-foreground); }
+.mt-runs__status { width: 0.4rem; height: 0.4rem; border-radius: var(--radius-pill); background: var(--warning); }
+.mt-runs__status[data-outcome="succeeded"] { background: var(--success); }
+.mt-runs__status[data-outcome="failed"] { background: var(--danger); }
+.mt-runs__pagination, .mt-runs__timing, .mt-runs__links { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.mt-runs__timing, .mt-runs__identity { color: var(--muted-foreground); font-size: var(--font-size-body-xs); }
+.mt-runs__pagination { justify-content: space-between; padding-top: 0.75rem; font-size: var(--font-size-body-xs); }
+.mt-runs__detail { min-width: 0; }
+.mt-runs__execution { display: grid; gap: 1rem; min-width: 0; }
+.mt-runs__heading { display: grid; gap: 0.5rem; min-width: 0; }
+.mt-runs__timing, .mt-runs__links { gap: 0.5rem 1rem; }
+.mt-runs__links { font-size: var(--font-size-body-sm); }
+.mt-runs__identity { overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .mt-runs { grid-template-columns: minmax(0, 1fr); }
+  .mt-runs__history { border-right: 0; border-bottom: 1px solid var(--border); padding: 0 0 1rem; }
+  .mt-runs__list { max-height: 15rem; }
+}
+
+.mt-runs[data-history-collapsed] { grid-template-columns: minmax(0, 1fr); }
+.mt-runs__history-panel { min-width: 0; }
+.mt-runs__history-panel[hidden] { display: none; }

@@ -1,22 +1,25 @@
 import "@xyflow/react/dist/base.css";
 import "./updatePipeline.css";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Badge, Button, Field, Input } from "@dev-mainsequence/command-center-sdk/controls";
 import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import {
   Background, BackgroundVariant, getViewportForBounds, Handle, MarkerType, MiniMap,
-  Position, ReactFlow, useStore, type Edge, type Node, type NodeProps, type ReactFlowInstance,
+  Panel, Position, ReactFlow, useStore, type Edge, type Node, type NodeProps, type ReactFlowInstance,
 } from "@xyflow/react";
-import { ArrowUpRight, Maximize, RefreshCw, Table2, X, ZoomIn, ZoomOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ArrowUpRight, Maximize, RefreshCw, Table2, ZoomIn, ZoomOut } from "lucide-react";
+import { Link } from "react-router-dom";
 import { metaTablesApi } from "../api";
 import { TimeIndexMetaTableIcon } from "../metatablesNavigation";
 import { detailPath } from "../navigation";
 import { layoutUpdatePipeline, pipelineLineage, pipelineNodeLabel, type PipelineDirection, type PipelineNode, type UpdatePipeline, type PipelineLane } from "../updatePipeline";
 import { useChartColors } from "../useChartColors";
-import { DetailSection, Facts, formatDate, Picker, RemoteContent, StatePanel, useRemote } from "../ui";
+import { DetailSection, Picker, RemoteContent, StatePanel, useRemote } from "../ui";
 
+import { PipelineInspector } from "./PipelineInspector";
+
+const nodePath = (node: PipelineNode) => detailPath(node.kind === "update" ? "data-updates" : node.kind === "time_index_table" ? "time-index-meta-tables" : "tables", node.uid);
 const kindLabel = (node: PipelineNode) => node.kind === "update" ? "Time Index Table Update"
   : node.kind === "time_index_table" ? "Time Index MetaTable" : "MetaTable";
 const statusLabel = (status?: string | null) => ({ Q: "Latest: queued", U: "Latest: updating", S: "Latest: success", E: "Latest: error",
@@ -35,6 +38,7 @@ const PipelineFlowNode = memo(function PipelineFlowNode({ data }: NodeProps<Flow
       <span className="mt-pnode__meta">{node.kind === "update" ? statusLabel(node.status) : kindLabel(node)}{root ? node.kind === "update" ? " · This update" : " · This table" : ""}</span>
     </span>
     {node.kind === "update" && <i aria-hidden="true" className="mt-pnode__status" data-status={node.status} />}
+    <Link className="mt-pnode__open nodrag nopan" to={nodePath(node)} aria-label={`Open ${node.kind === "update" ? "updater" : "table"} ${pipelineNodeLabel(node)}`} onClick={event => event.stopPropagation()}><ArrowUpRight size={15} aria-hidden="true" /></Link>
     <Handle className="mt-pnode__handle" isConnectable={false} position={Position.Right} type="source" />
   </div>;
 });
@@ -60,11 +64,10 @@ export function UpdatePipelinePanel({ uid, updateUid }: { uid: string; updateUid
   </DetailSection>;
 }
 
-export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, historical = false, renderNodeDetails }: {
+export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, historical = false }: {
   graph: UpdatePipeline; selectedNodeId?: string | null; onSelectNode?: (id: string | null) => void;
-  historical?: boolean; renderNodeDetails?: (node: PipelineNode) => ReactNode;
+  historical?: boolean;
 }) {
-  const navigate = useNavigate();
   const [readColor, writeColor] = useChartColors();
   const [selectedId, setSelectedId] = useState<string | null>(selectedNodeId ?? null);
   useEffect(() => { if (selectedNodeId !== undefined) setSelectedId(selectedNodeId); }, [selectedNodeId]);
@@ -73,6 +76,7 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
   const [flow, setFlow] = useState<ReactFlowInstance<FlowNode, Edge> | null>(null);
   const [zoom, setZoom] = useState(1);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const inspectorRef = useRef<HTMLDivElement>(null);
   const group = (node: PipelineNode) => node.kind === "update" ? "updates" : "tables";
   const visibleNodes = useMemo(() => graph.nodes.filter(node => !hidden.has(group(node))), [graph, hidden]);
   const visibleEdges = useMemo(() => {
@@ -84,14 +88,15 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
   const needle = query.trim().toLowerCase();
   const matches = useMemo(() => visibleNodes.filter(node => `${node.label} ${node.uid} ${node.update_hash ?? ""} ${node.namespace ?? ""}`.toLowerCase().includes(needle)), [needle, visibleNodes]);
   const shownIds = lineage && selected ? new Set([selected.id, ...lineage.upstream, ...lineage.downstream]) : null;
-  const shownNodes = shownIds ? visibleNodes.filter(node => shownIds.has(node.id)) : visibleNodes;
-  const shownEdges = shownIds ? visibleEdges.filter(edge => shownIds.has(edge.source) && shownIds.has(edge.target)) : visibleEdges;
-  const layout = useMemo(() => layoutUpdatePipeline(shownNodes, shownEdges, graph.root_id), [graph.root_id, visibleNodes, visibleEdges, selectedId]);
+  // Selection highlights lineage; it must never remove captured table outputs.
+  const shownNodes = visibleNodes;
+  const shownEdges = visibleEdges;
+  const layout = useMemo(() => layoutUpdatePipeline(shownNodes, shownEdges, graph.root_id), [graph.root_id, visibleNodes, visibleEdges]);
   const matchIds = new Set(matches.map(node => node.id));
   const flowNodes: FlowNode[] = shownNodes.map(node => {
     const box = layout.boxes.get(node.id)!;
     return { id: node.id, type: "pipeline", position: { x: box.x, y: box.y }, width: box.width, height: box.height,
-      data: { node, root: node.id === graph.root_id, state: selected ? node.id === selected.id ? "selected" : "lit" : needle && !matchIds.has(node.id) ? "dim" : "idle" },
+      data: { node, root: node.id === graph.root_id, state: selected ? node.id === selected.id ? "selected" : shownIds?.has(node.id) ? "lit" : "idle" : needle && !matchIds.has(node.id) ? "dim" : "idle" },
       draggable: false, connectable: false, ariaLabel: `${kindLabel(node)} ${pipelineNodeLabel(node)}, ${node.kind === "update" ? statusLabel(node.status) : node.id === graph.root_id ? "this table" : "table"}` };
   });
   const flowEdges: Edge[] = shownEdges.map((edge, index) => ({
@@ -105,10 +110,12 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
   const fit = useCallback((duration = 250) => {
     const canvas = canvasRef.current;
     if (!flow || !canvas) return;
-    const height = Math.max(80, canvas.clientHeight - 48);
+    // Keep the fitted graph above the inspector instead of hiding nodes under it.
+    const inspectorHeight = inspectorRef.current?.getBoundingClientRect().height ?? 0;
+    const height = Math.max(80, canvas.clientHeight - 48 - (inspectorHeight ? inspectorHeight + 20 : 0));
     const viewport = getViewportForBounds(layout.bounds, canvas.clientWidth, height, 0.15, 1.05, 0.13);
     void flow.setViewport({ ...viewport, y: viewport.y + 32 }, { duration });
-  }, [flow, layout]);
+  }, [flow, layout, Boolean(selected)]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => fit(0));
     return () => cancelAnimationFrame(frame);
@@ -118,6 +125,7 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
     if (!canvas) return;
     const observer = new ResizeObserver(() => fit(0));
     observer.observe(canvas);
+    if (inspectorRef.current) observer.observe(inspectorRef.current);
     return () => observer.disconnect();
   }, [fit]);
   const select = (id: string | null) => { setSelectedId(id); onSelectNode?.(id); setQuery(""); };
@@ -125,20 +133,13 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
     select(null);
     setHidden(previous => { const next = new Set(previous); if (next.has(kind)) next.delete(kind); else next.add(kind); return next; });
   };
-  const open = (node: PipelineNode) => navigate(detailPath(node.kind === "update" ? "data-updates" : node.kind === "time_index_table" ? "time-index-meta-tables" : "tables", node.uid));
-  const incoming = selected ? visibleEdges.filter(edge => edge.target === selected.id) : [];
-  const outgoing = selected ? visibleEdges.filter(edge => edge.source === selected.id) : [];
-  const neighbours = (ids: string[]) => ids.length ? <div className="mt-pipeline__neighbours">{[...new Set(ids)].map(id => {
-    const node = visibleNodes.find(node => node.id === id)!;
-    return <Button key={id} size="small" variant="ghost" title={node.label} onClick={() => select(id)}><span className="mt-pipeline__neighbour-label">{pipelineNodeLabel(node)}</span></Button>;
-  })}</div> : "None in this pipeline";
 
   return <ApplicationPageStack>
     <div className="mt-pipeline" data-focus={selected ? "" : undefined} data-zoom={zoom < 0.45 ? "far" : "near"}
       style={{ "--mt-pipeline-read": readColor, "--mt-pipeline-write": writeColor } as CSSProperties}
       onKeyDown={event => {
         if (event.key === "Escape") { event.preventDefault(); select(null); }
-        if (event.key === "Enter" || event.key === " ") {
+        if ((event.key === "Enter" || event.key === " ") && !(event.target as HTMLElement).closest("a, button, input")) {
           const id = (event.target as HTMLElement).closest(".react-flow__node")?.getAttribute("data-id");
           if (id) { event.preventDefault(); select(id === selectedId ? null : id); }
         }
@@ -158,7 +159,7 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
           <Badge>{Math.round(zoom * 100)}%</Badge>
           <Button aria-label="Zoom in pipeline" iconOnly size="small" variant="ghost" onClick={() => void flow?.zoomIn({ duration: 200 })}><ZoomIn size={16} aria-hidden="true" /></Button>
           <Button size="small" variant="ghost" onClick={() => fit()}><Maximize size={16} aria-hidden="true" />Fit</Button>
-          {selected && <Button size="small" variant="secondary" onClick={() => select(null)}>Whole pipeline</Button>}
+          {selected && <Button size="small" variant="secondary" onClick={() => select(null)}>Clear selection</Button>}
         </div>
       </div>
       {shownNodes.length ? <div className="mt-pipeline__canvas" ref={canvasRef} aria-label={historical ? "Historical run graph" : "Registered update pipeline"}>
@@ -166,9 +167,15 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
           onNodeClick={(_, node) => select(node.id === selectedId ? null : node.id)} onPaneClick={() => select(null)}
           onMove={(_, viewport) => setZoom(viewport.zoom)} minZoom={0.15} maxZoom={1.8}
           nodesDraggable={false} nodesConnectable={false} edgesFocusable={false} elementsSelectable={false}
-          panOnDrag panOnScroll zoomOnDoubleClick={false} attributionPosition="bottom-left">
+          panOnDrag panOnScroll zoomOnDoubleClick={false} attributionPosition="top-right">
           <Background gap={20} size={1} variant={BackgroundVariant.Dots} />
           <LaneHeaders lanes={layout.lanes} />
+          {selected && <Panel position="bottom-left" className="mt-pipeline__inspector nodrag nopan nowheel">
+            <div ref={inspectorRef} className="mt-pipeline__inspector-scroll" onWheel={event => event.stopPropagation()}>
+              <PipelineInspector key={selected.id} node={selected} graph={{ ...graph, nodes: visibleNodes, edges: visibleEdges }} historical={historical}
+                kind={kindLabel(selected)} status={statusLabel(selected.status)} nodePath={nodePath} onSelect={select} />
+            </div>
+          </Panel>}
           <MiniMap ariaLabel="Pipeline overview" pannable zoomable nodeBorderRadius={3} nodeColor={node => (node as FlowNode).data.node.kind === "update" ? writeColor : readColor}
             position="bottom-right" style={{ width: 104, height: 74 }} />
         </ReactFlow>
@@ -177,17 +184,6 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
         <span>{selected && lineage ? `${lineage.upstream.size} upstream · ${lineage.downstream.size} downstream · Esc to clear` : "Drag or scroll to pan. Select a node to trace its lineage."}</span>
       </div>
     </div>
-    {selected && lineage && <DetailSection title={pipelineNodeLabel(selected)} description={kindLabel(selected)} actions={<><Button size="small" variant="secondary" onClick={() => open(selected)}>Open {selected.kind === "update" ? "update" : "table"}<ArrowUpRight aria-hidden="true" size={16} /></Button><Button aria-label="Close pipeline inspector" iconOnly size="small" variant="ghost" onClick={() => select(null)}><X aria-hidden="true" size={16} /></Button></>}>
-      <Facts items={[{ label: "UID", value: selected.uid }, { label: "Namespace", value: selected.namespace || "None" },
-        ...(selected.kind !== "update" ? [{ label: "Physical table", value: selected.label }] : []),
-        ...(selected.kind === "update" ? [{ label: "Update hash", value: selected.update_hash }, { label: historical ? "State in this run" : "Latest state", value: statusLabel(selected.status) },
-          ...(historical ? [{ label: "Calculation started", value: formatDate(selected.started_at) }, { label: "Node finished", value: formatDate(selected.ended_at) },
-            { label: "Reason", value: selected.reason?.replaceAll("_", " ") || "—" }]
-            : [{ label: "Last update", value: formatDate(selected.last_update) }])] : []),
-        { label: "Direct inputs", value: neighbours(incoming.map(edge => edge.source)) }, { label: "Direct outputs / consumers", value: neighbours(outgoing.map(edge => edge.target)) },
-      ]} />
-      {!historical && selected.latest_run_uid && <Button variant="secondary" onClick={() => navigate(`/runs/${encodeURIComponent(selected.latest_run_uid!)}`)}>Open latest recorded run</Button>}
-      {renderNodeDetails?.(selected)}
-    </DetailSection>}
+
   </ApplicationPageStack>;
 }

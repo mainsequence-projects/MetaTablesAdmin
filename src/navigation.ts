@@ -4,7 +4,6 @@ export type Resource = TableResource | "data-updates" | "runs" | "namespaces" | 
 export const adminPaths = {
   settings: "/admin/settings",
   security: "/admin/security",
-  dataSources: "/admin/data-sources",
 } as const;
 
 export const resourceLabels: Record<Resource, string> = {

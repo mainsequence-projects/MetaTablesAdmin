@@ -35,7 +35,7 @@ export const metatablesNavigation = defineNavigationApplication({
     id: "metatables.catalog",
     label: "Catalog",
     destinations: [
-      { id: "metatables.data-sources", label: "Data Sources", description: "Database connections", href: "/data-sources", icon: Database },
+      { id: "metatables.data-sources", label: "Data Sources", description: "Registered databases", href: "/data-sources", icon: Database },
       { id: "metatables.tables", label: resourceLabels.tables, description: "All registered tables", href: "/tables", icon: Table2 },
       { id: "metatables.time-index-meta-tables", label: resourceLabels["time-index-meta-tables"], description: "Tables indexed by time", href: "/time-index-meta-tables", icon: TimeIndexMetaTableIcon },
       { id: "metatables.data-updates", label: resourceLabels["data-updates"], description: "Configured producers", href: "/data-updates", icon: RefreshCw },
@@ -56,7 +56,6 @@ export const adminNavigation = defineNavigationApplication({
     id: "metatables.administration",
     label: "Admin",
     destinations: [
-      { id: "metatables.admin-data-sources", label: "Data Sources", description: "Manage database connections", href: adminPaths.dataSources, icon: Database },
       { id: "metatables.security", label: "Security", description: "Table access and recovery", href: adminPaths.security, icon: ShieldCheck },
       { id: "metatables.settings", label: "Settings", description: "Runtime and DataSource", href: adminPaths.settings, icon: Settings },
     ],

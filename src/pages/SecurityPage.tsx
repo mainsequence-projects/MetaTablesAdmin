@@ -4,6 +4,7 @@ import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layou
 import { metaTablesApi } from "../api";
 import { Button, Card, Picker, RemoteContent, StatePanel, useRemote } from "../ui";
 import { PermissionsPanel } from "./PermissionsPanel";
+import { DatabasePermissionsPanel } from "./DatabasePermissionsPanel";
 
 export function SecurityPage() {
   const [search, setSearch] = useState("");
@@ -13,9 +14,6 @@ export function SecurityPage() {
   const [generation, setGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [repairing, setRepairing] = useState(false);
-  const [repairResult, setRepairResult] = useState<string | null>(null);
-  const [repairError, setRepairError] = useState<string | null>(null);
   const resources = useRemote(`security-${search}-${offset}-${generation}`, signal => metaTablesApi.securityResources(search, offset, signal));
   const [kind, uid] = (selected ?? "").split(":");
   async function createNamespace() {
@@ -24,13 +22,8 @@ export function SecurityPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : "Namespace creation failed."); }
     finally { setBusy(false); }
   }
-  async function repairPermissions() {
-    setRepairing(true); setRepairResult(null); setRepairError(null);
-    try { await metaTablesApi.reconcilePermissions(); setRepairResult("Database permissions now match the table and namespace grants."); }
-    catch (cause) { setRepairError(cause instanceof Error ? cause.message : "Permission repair failed. Queries remain disabled until repair succeeds."); }
-    finally { setRepairing(false); }
-  }
   return <ApplicationPageStack>
+    <DatabasePermissionsPanel />
     <Card title="Security" description="Manage grants and recover tables without an owner. To operate a table yourself, explicitly grant yourself Writer access.">
       <Field label="Find a table or namespace"><Input value={search} onChange={event => { setSearch(event.target.value); setOffset(0); }} /></Field>
       <RemoteContent state={resources}>{data => <>
@@ -49,11 +42,6 @@ export function SecurityPage() {
       <Field label="Namespace name"><Input value={name} onChange={event => setName(event.target.value)} /></Field>
       <Button disabled={!name.trim() || busy} pending={busy} onClick={() => void createNamespace()}>Create namespace</Button>
       {error && <StatePanel embedded title="Creation failed" tone="danger">{error}</StatePanel>}
-    </Card>
-    <Card title="Database permissions" description="Repair permissions after database administration or an interrupted migration. Queries pause while the repair runs.">
-      <Button disabled={repairing} pending={repairing} onClick={() => void repairPermissions()}>Repair database permissions</Button>
-      {repairResult && <StatePanel embedded title="Permissions repaired">{repairResult}</StatePanel>}
-      {repairError && <StatePanel embedded title="Permission repair failed" tone="danger">{repairError}</StatePanel>}
     </Card>
   </ApplicationPageStack>;
 }

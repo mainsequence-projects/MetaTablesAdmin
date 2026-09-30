@@ -1,0 +1,17 @@
+api_version: "2.3.0"
+name: metatables-admin
+resources:
+  - key: metatables-admin
+    kind: resource_release
+    spec:
+      release_kind: static_site
+      name: MetaTables Admin
+      root_directory: ""
+      framework: vite
+      node_version: "24"
+      output_directory: dist
+      routing_mode: spa
+      spa_entry_file: /index.html
+      automatic_redeployment:
+        enabled: true
+        tag_regex: null

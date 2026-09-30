@@ -32,6 +32,8 @@ export type RuntimeBootstrap = {
 };
 
 export type RuntimeContext = {
+  credential_store?: { provider: "unconfigured" | "sdk_secrets" | "local_encrypted";
+    status: "uninitialized" | "unavailable" | "ready" | "managed"; error: string | null } | null;
   is_admin: boolean;
   application_migrations_available: boolean;
   user_uid?: string;
@@ -61,7 +63,6 @@ export type RuntimeContext = {
   dialect: "sqlite" | "postgresql" | "mysql" | "mssql" | null;
   paramstyle: "named" | "pyformat" | "qmark" | null;
   default_schema: string | null;
-  capabilities: string[];
 };
 
 export type TableKind = "relational" | "time_index";
@@ -123,7 +124,6 @@ export type TableDetail = TableRecord & {
     stats?: boolean;
     updates?: boolean;
     timescale_policies?: boolean;
-    snapshot?: boolean;
     schema_graph?: boolean;
     permissions?: boolean;
   };
@@ -240,12 +240,6 @@ export type PolicyConfiguration = {
   last_modified?: string | null;
 };
 export type TablePolicies = { compression: PolicyConfiguration; retention: PolicyConfiguration };
-
-export type TableSnapshot = {
-  columns: string[];
-  rows: Record<string, unknown>[];
-  count?: number;
-};
 
 export class ApiError extends Error {
   constructor(
@@ -394,15 +388,33 @@ import type { SourceConfiguration, SourceEngine } from "./sourceConfiguration";
 export type SourcePatch = {
   display_name?: string; configuration?: SourceConfiguration;
   storage_access_mode?: string; is_default?: boolean;
+  password?: string;
 };
 export type SourceCreate = SourcePatch & {
   display_name: string; class_type: SourceEngine; configuration: SourceConfiguration;
 };
-export type SourceSummary = EntitySummary & { extensions?: { runtime_managed?: boolean; table_workflows_supported?: boolean } };
+export type SourceSummary = EntitySummary & { extensions?: { runtime_managed?: boolean } };
+export type DatabasePermissionStatus = {
+  status: "ready" | "pending" | "repair_required";
+  sql_enabled: boolean;
+  synchronization_pending: boolean;
+  data_source_uid: string;
+  data_source_name: string;
+  engine: string;
+  enforcement: "sqlite_authorizer" | "database_roles";
+  active_tables: number;
+  covered_tables: number;
+  missing_policies: number;
+  tables: { uid: string; name: string; schema: string | null; policy_present: boolean; writes_supported: boolean }[];
+};
+export type SourceQueryResult = {
+  ok: boolean; results: Record<string, unknown>[]; row_count: number;
+  truncated: boolean; max_rows: number; error: string | null;
+};
 export type SourceRecord = {
   uid: string; display_name: string; class_type: string; status: string;
   storage_access_mode: string; is_default: boolean; can_manage: boolean;
-  configuration: SourceConfiguration | null; capabilities: string[];
+  configuration: SourceConfiguration | null;
 };
 export const metaTablesApi = {
   configureRuntimeSource: (body: RuntimeSourceInput) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/configure/", { body }),
@@ -422,19 +434,26 @@ export const metaTablesApi = {
   selectRuntime: (mode: "local" | "hosted", signal?: AbortSignal) =>
     request<{ mode: "local" | "hosted"; restarting: boolean }>("POST", "runtime-mode/", { body: { mode }, signal }),
   sources: (search: string, offset: number, signal?: AbortSignal, limit = 25) => request<Page<SourceRecord>>("GET", "data-sources/", { query: { search, limit, offset }, signal }),
-  runtimeSources: (search: string, offset: number, signal?: AbortSignal, limit = 25) => request<Page<SourceRecord>>("GET", "runtime-source-candidates/", { query: { search, limit, offset }, signal }),
-  runtimeSource: (uid: string, signal?: AbortSignal) => request<SourceRecord>("GET", `runtime-source-candidates/${encodeURIComponent(uid)}/`, { signal }),
-  runtimeSourceSummary: (uid: string, signal?: AbortSignal) => request<SourceSummary>("GET", `runtime-source-candidates/${encodeURIComponent(uid)}/summary/`, { signal }),
-  createRuntimeSource: (body: SourceCreate) => request<SourceRecord>("POST", "runtime-source-candidates/", { body }),
-  updateRuntimeSource: (uid: string, body: SourcePatch) => request<SourceRecord>("PATCH", `runtime-source-candidates/${encodeURIComponent(uid)}/`, { body }),
-  validateRuntimeSource: (uid: string) => request<SourceRecord>("POST", `runtime-source-candidates/${encodeURIComponent(uid)}/validate/`, { body: {} }),
-  deleteRuntimeSource: (uid: string) => request<null>("DELETE", `runtime-source-candidates/${encodeURIComponent(uid)}/`),
   sourceSummary: (uid: string, signal?: AbortSignal) => request<SourceSummary>("GET", `data-sources/${encodeURIComponent(uid)}/summary/`, { signal }),
   source: (uid: string, signal?: AbortSignal) => request<SourceRecord>("GET", `data-sources/${encodeURIComponent(uid)}/`, { signal }),
   createSource: (body: SourceCreate) => request<SourceRecord>("POST", "data-sources/", { body }),
+  testSourceConnection: async (body: SourceCreate) => {
+    try {
+      return await request<{ ok: boolean; message: string }>("POST", "data-sources/test-connection/", { body });
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 404 || error.status === 405)) {
+        throw new ApiError("The running MetaTables API does not support this connection test. Restart or update the API, then retry.", error.status);
+      }
+      throw error;
+    }
+  },
   updateSource: (uid: string, body: SourcePatch) => request<SourceRecord>("PATCH", `data-sources/${encodeURIComponent(uid)}/`, { body }),
   validateSource: (uid: string) => request<SourceRecord>("POST", `data-sources/${encodeURIComponent(uid)}/validate/`, { body: {} }),
   deleteSource: (uid: string) => request<null>("DELETE", `data-sources/${encodeURIComponent(uid)}/`),
+  runSourceQuery: (uid: string, sql: string, maxRows: number, offset = 0, signal?: AbortSignal) =>
+    request<SourceQueryResult>("POST", "meta-tables/run-query/", {
+      body: { data_source_uid: uid, sql, limits: { max_rows: maxRows, offset, statement_timeout_ms: 15000 } }, signal,
+    }),
   listTables: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) =>
     mapPage(page<TableApiRecord>(await request("GET", "meta-tables/", { query: tableQuery(query), signal })), tableRecord),
   table: async (uid: string, signal?: AbortSignal) => tableRecord(await request<TableApiRecord>("GET", `meta-tables/${encodeURIComponent(uid)}/`, { signal })),
@@ -442,7 +461,6 @@ export const metaTablesApi = {
     mapPage(page<TableApiRecord>(await request("GET", "time-index-meta-tables/", { query: tableQuery(query), signal })), tableRecord),
   timeIndexTable: async (uid: string, signal?: AbortSignal) => tableRecord(await request<TableApiRecord>("GET", `time-index-meta-tables/${encodeURIComponent(uid)}/`, { signal })),
   tableDescription: (uid: string, signal?: AbortSignal) => request<{ content: string }>("GET", `meta-tables/${encodeURIComponent(uid)}/search-document/`, { signal }),
-  tableSnapshot: (uid: string, offset: number, signal?: AbortSignal) => request<TableSnapshot>("GET", `meta-tables/${encodeURIComponent(uid)}/snapshot`, { query: { limit: 50, offset }, signal }),
   tableGraph: async (uid: string, depth: number, incoming: boolean, signal?: AbortSignal) => schemaGraphRecord(await request<SchemaGraphApi>("GET", `meta-tables/${encodeURIComponent(uid)}/schema-graph`, { query: { depth, include_incoming: incoming }, signal })),
   tableSchemaGraph: (uid: string, depth: number, incoming: boolean, signal?: AbortSignal) => request<SchemaGraphApi>("GET", `meta-tables/${encodeURIComponent(uid)}/schema-graph`, { query: { depth, include_incoming: incoming }, signal }),
   tableStats: (uid: string, signal?: AbortSignal) => request<Record<string, unknown>>("GET", `meta-tables/${encodeURIComponent(uid)}/stats`, { signal }),
@@ -452,6 +470,7 @@ export const metaTablesApi = {
   saveTablePolicies: (uid: string, value: TablePolicies) => request<TablePolicies>("PATCH", `meta-tables/${encodeURIComponent(uid)}/policies`, { body: value }),
   securityResources: (search: string, offset: number, signal?: AbortSignal) => request<{ tables: Principal[]; namespaces: Principal[] }>("GET", "security/resources/", { query: { search, offset }, signal }),
   createSecurityNamespace: (name: string) => request<Principal>("POST", "security/namespaces/", { body: { name } }),
+  databasePermissionStatus: (signal?: AbortSignal) => request<DatabasePermissionStatus>("GET", "security/database-permissions/", { signal }),
   reconcilePermissions: () => request<{ ok: boolean; data_source_uid: string }>("POST", "security/reconcile/"),
   effectiveAccess: (uid: string, userUid: string, withoutGrantUid?: string) => request<AccessPreview>("GET", `meta-tables/${encodeURIComponent(uid)}/effective-access/`, { query: { user_uid: userUid, without_grant_uid: withoutGrantUid } }),
   accessHistory: (uid: string, namespace = false) => request<AccessEvent[]>("GET", namespace ? "security/access-history/" : `meta-tables/${encodeURIComponent(uid)}/access-history/`, { query: namespace ? { kind: "namespace", uid } : undefined }),
@@ -462,6 +481,7 @@ export const metaTablesApi = {
   listUpdates: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) => mapPage(page<UpdateApiRecord>(await request("GET", "time-index-table-updates/", { query, signal })), updateRecord),
   update: async (uid: string, signal?: AbortSignal) => updateRecord(await request<UpdateApiRecord>("GET", `time-index-table-updates/${encodeURIComponent(uid)}/`, { signal })),
   updateRuns: async (uid: string, offset: number, signal?: AbortSignal, limit = 25) => mapPage(page<Parameters<typeof updateRunRecord>[0]>(await request("GET", "table-update-runs/", { query: { table_update_uid: uid, limit, offset }, signal })), updateRunRecord),
+  tableRuns: async (uid: string, offset: number, signal?: AbortSignal, limit = 25) => mapPage(page<Parameters<typeof updateRunRecord>[0]>(await request("GET", "table-update-runs/", { query: { output_table_uid: uid, limit, offset }, signal })), updateRunRecord),
   rootRuns: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) => mapPage(page<Parameters<typeof updateRunRecord>[0]>(await request("GET", "table-update-runs/", { query: { ...query, root_only: "true" }, signal })), updateRunRecord),
   runGraph: (uid: string, signal?: AbortSignal) => request<HistoricalRunGraph>("GET", `table-update-runs/${encodeURIComponent(uid)}/graph/`, { signal }),
   runLogs: (uid: string, query: Record<string, string | number | undefined>, signal?: AbortSignal) => request<UpdateLogPage>("GET", `table-update-runs/${encodeURIComponent(uid)}/logs/`, { query, signal }),

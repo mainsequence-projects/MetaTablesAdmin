@@ -41,10 +41,17 @@ function useMetaTablesRuntime(): RuntimeState {
     const hostOrigin = import.meta.env.VITE_COMMAND_CENTER_ORIGIN?.trim();
     const releaseUid = import.meta.env.VITE_METATABLES_RESOURCE_RELEASE_UID?.trim();
     let validOrigin = false;
-    try { validOrigin = Boolean(hostOrigin && new URL(hostOrigin).origin === hostOrigin); }
+    try {
+      const url = hostOrigin ? new URL(hostOrigin) : null;
+      validOrigin = Boolean(url && ["http:", "https:"].includes(url.protocol) && url.origin === hostOrigin);
+    }
     catch { validOrigin = false; }
-    if (!validOrigin || !hostOrigin || !releaseUid) {
-      setState({ status: "error", message: "The Command Center origin and MetaTables API release must be configured for this embed.", generation: 0 });
+    if (!validOrigin || !hostOrigin) {
+      setState({ status: "error", message: "The platform did not supply a valid Command Center origin for this Vite deployment.", generation: 0 });
+      return;
+    }
+    if (!releaseUid) {
+      setState({ status: "error", message: "This site is not bound to a deployed MetaTables API release yet.", generation: 0 });
       return;
     }
     let receivedContext = false;
@@ -53,12 +60,16 @@ function useMetaTablesRuntime(): RuntimeState {
       hostOrigin,
       parentWindow: window.parent,
       onContext(context) {
+        const userChanged = userUid.current !== context.userUid;
+        const identityChanged = !receivedContext || userChanged;
         receivedContext = true;
         const theme = resolveCommandCenterThemeById(context.themeId)
           ?? (context.themeMode === "dark" ? mainSequenceTheme : quartzLightTheme);
         applyThemePresetToRoot(document.documentElement, { theme });
-        setHostedMetaTablesTransport((path, init) => client.fetchFastApi({ resourceReleaseUid: releaseUid, path }, init));
-        setState((current) => ({ status: "ready", message: "", generation: current.generation + (userUid.current !== context.userUid ? 1 : 0) }));
+        if (identityChanged) {
+          setHostedMetaTablesTransport((path, init) => client.fetchFastApi({ resourceReleaseUid: releaseUid, path }, init));
+        }
+        setState((current) => ({ status: "ready", message: "", generation: current.generation + (userChanged ? 1 : 0) }));
         userUid.current = context.userUid;
       },
     });
@@ -79,12 +90,12 @@ function useMetaTablesRuntime(): RuntimeState {
   return state;
 }
 
-function ResourceRoute({ resource, administration = false }: { resource: PageResource; administration?: boolean }) {
+function ResourceRoute({ resource }: { resource: PageResource }) {
   const { uid } = useParams();
   const [search] = useSearchParams();
   const tab = search.get("tab");
   return <ApplicationPageStack>
-    {resource === "data-sources" ? <DataSourcesPage key={`${administration}-${uid ?? "list"}`} uid={uid ?? null} administration={administration} /> : resource === "tables" || resource === "time-index-meta-tables" ? <TablesPage key={resource} resource={resource} uid={uid ?? null} tab={tab} />
+    {resource === "data-sources" ? <DataSourcesPage key={uid ?? "list"} uid={uid ?? null} /> : resource === "tables" || resource === "time-index-meta-tables" ? <TablesPage key={resource} resource={resource} uid={uid ?? null} tab={tab} />
       : resource === "data-updates" ? <DataUpdatesPage uid={uid ?? null} tab={tab} />
         : resource === "runs" ? <RunsPage key={uid ?? "list"} uid={uid ?? null} />
         : <NamespacesPage uid={uid ?? null} tab={tab} />}
@@ -94,20 +105,20 @@ function ResourceRoute({ resource, administration = false }: { resource: PageRes
 function RequireAdministrator() {
   const { runtime } = useRuntimeContext();
   if (runtime.is_admin !== true) return <ApplicationStatusScreen variant="contained" title="Admin access required"
-    message="Application Settings, DataSource management and Security require platform admin access. Table Writers manage sharing on their table's Access panel." state="error" />;
+    message="Application Settings and Security require platform admin access. Table Writers manage sharing on their table's Access panel." state="error" />;
   return <Outlet />;
 }
 
-function RuntimeConfiguredRoutes({ allowUnavailableSource = false }: { allowUnavailableSource?: boolean }) {
+function RuntimeConfiguredRoutes() {
   const { runtime } = useRuntimeContext();
   const navigate = useNavigate();
-  if (!(allowUnavailableSource && runtime.bootstrap?.active !== false) && (!runtime.data_source || runtime.data_source_error)) {
+  if (!runtime.data_source || runtime.data_source_error) {
     return <ApplicationPageStack><DataSourceConfigurationError onSettings={() => navigate(adminPaths.settings)} /></ApplicationPageStack>;
   }
   return <Outlet />;
 }
 
-function LegacyAdminRedirect({ to }: { to: string }) {
+function LegacyRouteRedirect({ to }: { to: string }) {
   const { search, hash } = useLocation();
   return <Navigate replace to={`${to}${search}${hash}`} />;
 }
@@ -121,8 +132,7 @@ function AuthorizedApplication() {
   const [menuOpen, setMenuOpen] = useState(false);
   const resource = resourceForPath(location.pathname);
   const adminRoute = Boolean(matchPath("/admin/*", location.pathname));
-  const adminDestination = matchPath(`${adminPaths.security}/*`, location.pathname) ? "security"
-    : matchPath(`${adminPaths.dataSources}/*`, location.pathname) ? "admin-data-sources" : "settings";
+  const adminDestination = matchPath(`${adminPaths.security}/*`, location.pathname) ? "security" : "settings";
   const activeApplicationId = isAdmin && adminRoute ? adminNavigation.id : metatablesNavigation.id;
   const activeDestinationId = `metatables.${isAdmin && adminRoute ? adminDestination : resource}`;
   const [openApplicationId, setOpenApplicationId] = useState<string | null>(activeApplicationId);
@@ -134,7 +144,7 @@ function AuthorizedApplication() {
 
   useEffect(() => {
     const title = adminRoute ? !isAdmin ? "Admin access required" : adminDestination === "security" ? "Security"
-      : adminDestination === "admin-data-sources" ? "Data Sources" : "Settings" : resourceLabels[resource];
+      : "Settings" : resourceLabels[resource];
     document.title = `${title} · MetaTables Admin`;
   }, [resource, adminRoute, adminDestination, isAdmin]);
 
@@ -150,20 +160,15 @@ function AuthorizedApplication() {
   const content = <ApplicationPage as="main" maxWidth="full" className="metatables-page">
     <Routes>
       <Route path="/" element={<Navigate replace to="/tables" />} />
-      <Route path="/settings" element={<LegacyAdminRedirect to={adminPaths.settings} />} />
-      <Route path="/security" element={<LegacyAdminRedirect to={adminPaths.security} />} />
-      <Route path="/data-sources/new" element={<LegacyAdminRedirect to={`${adminPaths.dataSources}/new`} />} />
+      <Route path="/settings" element={<LegacyRouteRedirect to={adminPaths.settings} />} />
+      <Route path="/security" element={<LegacyRouteRedirect to={adminPaths.security} />} />
       <Route path="/admin" element={<RequireAdministrator />}>
         <Route index element={<Navigate replace to={adminPaths.settings} />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route element={<RuntimeConfiguredRoutes />}>
           <Route path="security" element={<SecurityPage />} />
         </Route>
-        <Route element={<RuntimeConfiguredRoutes allowUnavailableSource />}>
-          <Route path="data-sources" element={<ResourceRoute resource="data-sources" administration />} />
-          <Route path="data-sources/:uid" element={<ResourceRoute resource="data-sources" administration />} />
-        </Route>
-        <Route path="*" element={<Navigate replace to={adminPaths.settings} />} />
+        <Route path="*" element={<ApplicationStatusScreen variant="contained" title="Page not found" message="This page does not exist." state="error" />} />
       </Route>
       <Route element={<RuntimeConfiguredRoutes />}>
         <Route path="/tables" element={<ResourceRoute resource="tables" />} />
@@ -177,11 +182,9 @@ function AuthorizedApplication() {
         <Route path="/namespaces" element={<ResourceRoute resource="namespaces" />} />
         <Route path="/namespaces/:uid" element={<ResourceRoute resource="namespaces" />} />
       </Route>
-      <Route element={<RuntimeConfiguredRoutes allowUnavailableSource />}>
-        <Route path="/data-sources" element={<ResourceRoute resource="data-sources" />} />
-        <Route path="/data-sources/:uid" element={<ResourceRoute resource="data-sources" />} />
-      </Route>
-      <Route path="*" element={<Navigate replace to="/tables" />} />
+      <Route path="/data-sources" element={<ResourceRoute resource="data-sources" />} />
+      <Route path="/data-sources/:uid" element={<ResourceRoute resource="data-sources" />} />
+      <Route path="*" element={<ApplicationStatusScreen variant="contained" title="Page not found" message="This page does not exist." state="error" />} />
     </Routes>
   </ApplicationPage>;
 
@@ -202,7 +205,7 @@ function AuthorizedApplication() {
     menuOpen={menuOpen}
     onMenuOpenChange={setMenuOpen}
     onNavigate={handleNavigate}
-    openApplicationId={applications.some(item => item.id === openApplicationId) ? openApplicationId : activeApplicationId}
+    openApplicationId={openApplicationId === null || applications.some(item => item.id === openApplicationId) ? openApplicationId : activeApplicationId}
     onOpenApplicationChange={setOpenApplicationId}
     overlayTrigger="floating"
     panelWidth="254px"

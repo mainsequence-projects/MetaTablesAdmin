@@ -96,7 +96,7 @@ export const namespacesResource = defineResourceApplication<NamespaceRecord, str
 export const sourcesResource = defineResourceApplication<SourceRecord, string>({
   id: "metatables-data-sources",
   label: resourceLabels["data-sources"],
-  description: "Database registrations owned by this MetaTables API.",
+  description: "Registered databases available to this MetaTables API.",
   itemLabel: "data sources",
   getId: source => source.uid,
   adapter: {
@@ -111,20 +111,6 @@ export const sourcesResource = defineResourceApplication<SourceRecord, string>({
     { id: "access", header: "Access", importance: "secondary", renderCell: source => source.storage_access_mode },
     { id: "default", header: "Default", importance: "tertiary", renderCell: source => source.is_default ? "Yes" : "No" },
   ],
-});
-
-export const runtimeSourcesResource = defineResourceApplication<SourceRecord, string>({
-  id: "metatables-runtime-data-sources",
-  label: "Hosted connections",
-  description: "Connections registered for hosted runtime setup. The local workspace source is listed separately in Data Sources.",
-  itemLabel: "hosted connections",
-  getId: source => source.uid,
-  adapter: {
-    async list({ pageIndex, pageSize, search, signal }) {
-      return result(await metaTablesApi.runtimeSources(search ?? "", pageIndex * pageSize, signal, pageSize), pageIndex, pageSize);
-    },
-  },
-  columns: sourcesResource.columns,
 });
 
 export function defineNamespaceTablesResource(uid: string) {
@@ -184,3 +170,25 @@ export function defineUpdateRunsResource(uid: string) {
     ],
   });
 }
+
+export const runsResource = defineResourceApplication<UpdateRun, string>({
+  id: "metatables-runs",
+  label: "Runs",
+  description: "Each invocation has its own dependency graph, results and logs.",
+  itemLabel: "runs",
+  getId: run => run.uid,
+  adapter: {
+    async list({ pageIndex, pageSize, filters, signal }) {
+      const query = Object.fromEntries(["table_update_uid", "outcome", "start_time", "end_time"]
+        .map(key => [key, typeof filters?.[key] === "string" ? filters[key] : undefined]));
+      return result(await metaTablesApi.rootRuns({ ...query, limit: pageSize, offset: pageIndex * pageSize }, signal), pageIndex, pageSize);
+    },
+  },
+  columns: [
+    { id: "updater", header: "Root updater", importance: "primary", renderCell: run => <ResourceIconLabelCell label={display(run.updater_label || run.table_update_uid)} meta={run.uid} /> },
+    { id: "started", header: "Started", importance: "primary", renderCell: run => formatDate(run.started_at) },
+    { id: "outcome", header: "Outcome", importance: "secondary", renderCell: run => <ResourceStatusCell label={display(run.outcome || run.result)} tone={run.outcome === "succeeded" ? "success" : run.outcome === "failed" ? "danger" : "warning"} /> },
+    { id: "ended", header: "Ended", importance: "secondary", renderCell: run => formatDate(run.ended_at) },
+    { id: "duration", header: "Duration", importance: "secondary", renderCell: run => run.duration_seconds == null ? "Not available" : `${run.duration_seconds.toFixed(1)}s` },
+  ],
+});

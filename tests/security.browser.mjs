@@ -33,7 +33,7 @@ try {
       let result;
       if (path.endsWith('/runtime-context/')) result = { is_admin: isAdmin, user_uid: user, local_mode: true, local_mode_available: true,
         data_source: { uid, display_name: 'Local', class_type: 'sqlite', status: 'AVAILABLE', storage_access_mode: 'read_write' }, data_source_error: null,
-        bootstrap: { active: true }, capabilities: [], dialect: 'sqlite', paramstyle: 'named', default_schema: 'public' };
+        bootstrap: { active: true }, dialect: 'sqlite', paramstyle: 'named', default_schema: 'public' };
       else if (path.endsWith('/permissions')) {
         if (request.method() === 'PUT') { assert.equal(request.postDataJSON().revision, 'revision-1'); assignments = request.postDataJSON().assignments; saves++; }
         result = { revision: 'revision-1', assignments: writer ? assignments : { ...assignments, edit: { users: [], teams: [] } },
@@ -55,9 +55,9 @@ try {
     await assertCommandCenterPageLayout(page, { rootSelector: "[data-security-access]", viewports: [{ width, height: width === 375 ? 812 : 800, pointer: width === 375 ? "coarse" : "fine" }] });
     assert.equal(await page.getByRole('button', { name: 'Save access', exact: true }).isEnabled(), false);
     assert.equal(await page.getByText('Grant to exclude (optional)', { exact: true }).count(), 0);
-    await page.getByRole('group', { name: 'Writer available users', exact: true }).getByRole('checkbox', { name: 'Select Bob', exact: true }).check();
+    await page.getByRole('listbox', { name: /^Available writer users/ }).getByRole('option', { name: 'Bob', exact: true }).click();
     await page.getByRole('button', { name: 'Add selected writer users', exact: true }).click();
-    await page.getByRole('group', { name: 'Reader selected users', exact: true }).getByText('Bob', { exact: true }).waitFor();
+    await page.getByRole('listbox', { name: /^Selected reader users/ }).getByRole('option', { name: /Bob/ }).waitFor();
     await page.getByText('Unsaved changes', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Save access', exact: true }).click();
     await page.getByText('Access saved.', { exact: false }).waitFor();
@@ -74,7 +74,7 @@ try {
     await page.reload();
     await page.getByText('Your table access: Reader', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Save access', exact: true }).count(), 0);
-    assert.equal(await page.getByRole('button', { name: 'Add selected reader users', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Add selected reader users', exact: true }).getAttribute('aria-disabled'), 'true');
     await page.goto(`${url}/settings`);
     await page.getByText('Admin access required', { exact: true }).waitFor();
     assert.equal(new URL(page.url()).pathname, '/admin/settings');

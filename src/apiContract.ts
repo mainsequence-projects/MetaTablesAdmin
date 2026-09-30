@@ -109,9 +109,20 @@ export function updateRecord(row: UpdateApiRecord): DataUpdateDetail {
     configuration: row.configuration ?? row.build_configuration,
   };
 }
-/** Preserve useful API failures without reflecting submitted values or driver data. */
+/** Preserve API error messages; translate codes only when no message is provided. */
 export function apiErrorDetail(detail: unknown): string | null {
   if (typeof detail === "string") return detail;
+  if (detail && typeof detail === "object" && !Array.isArray(detail) && "code" in detail) {
+    if ("detail" in detail && typeof detail.detail === "string" && detail.detail.trim() && detail.detail !== detail.code) {
+      return detail.detail;
+    }
+    const sqlMessages: Record<string, string> = {
+      sql_deadline_exceeded: "The query took too long. Try a smaller query or fewer rows.",
+      sql_security_not_initialized: "Database permissions need to be initialized before running queries. An admin can do this in Security.",
+      sql_permission_reconciliation_pending: "Database permissions are being updated. Try the query again shortly.",
+    };
+    return typeof detail.code === "string" ? sqlMessages[detail.code] ?? detail.code : null;
+  }
   if (!Array.isArray(detail)) return null;
   const errors = detail.flatMap(item => {
     if (!item || typeof item !== "object" || typeof item.msg !== "string") return [];
