@@ -1,2 +1,8 @@
 node_modules/
 dist/
+__pycache__/
+.pytest_cache/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
