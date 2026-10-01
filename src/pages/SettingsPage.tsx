@@ -6,7 +6,7 @@ import { RuntimeDataSourceSetup } from "../runtimeDataSourceSetup";
 import { RuntimeHostedSourceSelection } from "../RuntimeHostedSourceSelection";
 import { DataSourceTypeIcon, sourceEnginePickerIcon } from "../DataSourceTypeIcon";
 import { useRuntimeContext } from "../runtimeContext";
-import { Badge, Card, PageHeading, Picker } from "../ui";
+import { Badge, Card, PageHeading, Picker, StatePanel } from "../ui";
 
 export function SettingsPage() {
   const { runtime, refresh, switchMode, switchError } = useRuntimeContext();
@@ -69,6 +69,19 @@ export function SettingsPage() {
         onClick={() => { setBusy(true); void switchMode(mode).finally(() => setBusy(false)); }}>
         Switch to {mode === "local" ? "Local" : "Hosted"}
       </Button></div>}
+    </Card>
+    <Card title="Credential storage" description={!runtime.local_mode
+      ? "Hosted database passwords and TLS material use managed Main Sequence Secrets."
+      : "Local database passwords and TLS material are encrypted in this catalog. The key stays in the API account's native keyring or protected key files."}>
+      <Badge tone={runtime.credential_store?.status === "ready" || runtime.credential_store?.status === "managed" ? "success" : "danger"}>
+        {runtime.credential_store?.status ?? "Unavailable"}
+      </Badge>
+      {runtime.credential_store?.error && <StatePanel embedded tone="danger" title="Credential storage unavailable">
+        {runtime.credential_store.error}
+      </StatePanel>}
+      {!runtime.credential_store && <StatePanel embedded tone="danger" title="Credential storage status unavailable">
+        Restart the updated API, then refresh runtime to load its credential storage status.
+      </StatePanel>}
     </Card>
   </ApplicationPageStack>;
 }

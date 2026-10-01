@@ -51,9 +51,28 @@ test("namespace, update and DataSource sections have stable defaults and deep li
       assert.equal(resolved.fallback, activeTabId !== null);
     }
     for (const tab of tabs) {
-      const resolved = resolveResourceDetailTabs(tabs, { activeTabId: tab.id, resource: {} });
+      const resolved = resolveResourceDetailTabs(tabs, { activeTabId: tab.id, resource: { can_import: true } });
       assert.equal(resolved.activeTab.id, tab.id);
       assert.equal(resolved.fallback, false);
     }
   }
+});
+
+test("removed snapshot deep links resolve to details for every table kind", () => {
+  for (const resource of [null, { kind: "row" }, { kind: "time_index" }]) {
+    const resolved = resolveResourceDetailTabs(tableDetailTabs, { activeTabId: "data-snapshot", resource });
+    assert.equal(resolved.activeTab.id, "details");
+    assert.equal(resolved.fallback, true);
+    assert.equal(resolved.tabs.some(tab => tab.id === "data-snapshot"), false);
+  }
+});
+
+
+test("DataSource import follows the API admin affordance", () => {
+  for (const can_import of [false, undefined]) {
+    const tabs = resolveResourceDetailTabs(sourceDetailTabs, { activeTabId: "import", resource: { can_import } });
+    assert.equal(tabs.activeTab.id, "details");
+    assert.equal(tabs.tabs.some(tab => tab.id === "import"), false);
+  }
+  assert.equal(resolveResourceDetailTabs(sourceDetailTabs, { activeTabId: "import", resource: { can_import: true } }).activeTab.id, "import");
 });

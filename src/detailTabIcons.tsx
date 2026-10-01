@@ -1,10 +1,11 @@
-import { AlignLeft, ChartNoAxesCombined, Clock3, FileText, History, LayoutDashboard, List, Network, ScrollText, ShieldCheck, Table2, type LucideIcon } from "lucide-react";
+import { AlignLeft, ChartNoAxesCombined, Clock3, Code2, FileText, History, LayoutDashboard, Network, ScrollText, ShieldCheck, Table2, type LucideIcon } from "lucide-react";
 
 const tabIcons: Record<string, LucideIcon> = {
   details: FileText,
+  rows: Table2,
+  import: Table2,
   stats: ChartNoAxesCombined,
   description: AlignLeft,
-  "data-snapshot": List,
   "ulm-diagram": Network,
   updates: History,
   policies: Clock3,
@@ -14,6 +15,7 @@ const tabIcons: Record<string, LucideIcon> = {
   logs: ScrollText,
   overview: LayoutDashboard,
   tables: Table2,
+  "query-builder": Code2,
 };
 
 export function DetailTabIcon({ id }: { id: string }) {

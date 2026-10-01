@@ -33,7 +33,7 @@ try {
     const requests = [], errors = [];
     page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
     const source = { uid, display_name: 'Analytics', class_type: 'postgresql', status: 'AVAILABLE',
-      storage_access_mode: 'read_write', is_default: false, can_manage: true, capabilities: ['supports_schema_migrations'],
+      storage_access_mode: 'read_write', is_default: false, can_manage: true,
       configuration: { host: 'db.example.test', port: 5432, database_name: 'analytics', database_user: 'reader', default_schema: 'public', ssl_mode: 'require' } };
     await page.route('**/api/**', async route => {
       const request = route.request(), path = new URL(request.url()).pathname;
@@ -46,7 +46,7 @@ try {
           api_endpoint: url, runtime_instance_id: 'worker-1', runtime_switch_available: false,
           data_source: initialized ? source : null, data_source_error: initialized ? null : 'runtime_not_initialized',
           bootstrap: { active: initialized, status: initialized ? 'ready' : 'unconfigured', candidate: null, current_revisions: [], required_revisions: [] },
-          capabilities: [], dialect: local ? 'sqlite' : 'postgresql', paramstyle: 'named', default_schema: 'public' };
+          dialect: local ? 'sqlite' : 'postgresql', paramstyle: 'named', default_schema: 'public' };
       } else if (path === '/api/security/resources/') result = { tables: [], namespaces: [] };
       else if (path === `/api/data-sources/${uid}/summary/`) result = {
         entity: { id: uid, title: 'Analytics' }, inline_fields: [], highlight_fields: [], badges: [], labels: [], stats: [],
@@ -96,7 +96,7 @@ try {
     }
     isAdmin = false;
 
-    // A stale/malformed source capability cannot manufacture administrative UI.
+    // Source management facts cannot override the authenticated user's role.
     await page.goto(`${url}/data-sources/${uid}`);
     await page.getByRole('heading', { name: 'Data Source details', exact: true }).waitFor();
     for (const name of ['Save changes', 'Validate connection', 'Disable', 'Remove registration', 'Manage source']) {
@@ -106,8 +106,14 @@ try {
     await page.getByText('Analytics', { exact: true }).first().waitFor();
     assert.equal(await page.getByRole('button', { name: /Register source|Manage sources/ }).count(), 0);
 
-    // Configuration errors must not send an ordinary user to Settings.
+    // Browsing sources remains available before initialization.
     initialized = false;
+    await page.goto(`${url}/data-sources`);
+    await page.getByText('Analytics', { exact: true }).first().waitFor();
+    assert.equal(await page.getByText('Admin access required', { exact: true }).count(), 0);
+    await noAdminNavigation();
+
+    // Configuration errors must not send an ordinary user to Settings.
     await page.goto(`${url}/tables`);
     await page.getByText('Ask an application admin to configure or restore the runtime DataSource.', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Open Settings', exact: true }).count(), 0);
@@ -117,10 +123,10 @@ try {
     assert.equal(page.url(), `${url}/admin/settings?tab=runtime#database`);
     await assertCommandCenterApplicationShell(page, { navigationDepth: 2, phase: 'ready' });
     await openMenu();
-    for (const href of ['/admin/settings', '/admin/security', '/admin/data-sources']) {
+    for (const href of ['/admin/settings', '/admin/security']) {
       assert(await page.locator(`a[href="${href}"]`).count(), `Missing native admin destination ${href}`);
     }
-    assert.equal(await page.locator('a[href="/settings"], a[href="/security"]').count(), 0);
+    assert.equal(await page.locator('a[href="/settings"], a[href="/security"], a[href^="/admin/data-sources"]').count(), 0);
     await closeMenu();
 
     // Refreshing changed facts removes the menu and the already-mounted page.
@@ -147,16 +153,24 @@ try {
     await assertCommandCenterApplicationShell(page, { navigationDepth: 2, phase: 'ready' });
     if (width === 375) assert.equal(await page.locator('[data-cc-navigation-drawer]').count(), 0);
 
+    // Removed Admin DataSource paths do not redirect or mount the catalog view.
+    for (const path of ['/admin/data-sources', '/admin/data-sources/new', `/admin/data-sources/${uid}?tab=details#database`]) {
+      requests.length = 0;
+      await page.goto(url + path);
+      await page.getByText('Page not found', { exact: true }).waitFor();
+      assert.equal(page.url(), url + path);
+      assert(requests.every(request => request.path === '/api/runtime-context/'));
+    }
+
     if (!local) {
       await page.goto(`${url}/data-sources/${uid}`);
-      await page.getByRole('button', { name: 'Manage source', exact: true }).click();
       await page.getByRole('heading', { name: 'Data Source editor', exact: true }).waitFor();
-      assert.equal(new URL(page.url()).pathname, `/admin/data-sources/${uid}`);
+      assert.equal(new URL(page.url()).pathname, `/data-sources/${uid}`);
       assert(await page.getByRole('button', { name: 'Save changes', exact: true }).isVisible());
-      await page.goto(`${url}/admin/data-sources`);
-      await page.getByRole('button', { name: 'Register source', exact: true }).click();
+      await page.goto(`${url}/data-sources`);
+      await page.getByRole('button', { name: 'Add DataSource', exact: true }).click();
       await page.getByRole('button', { name: 'Create DataSource', exact: true }).waitFor();
-      assert.equal(new URL(page.url()).pathname, '/admin/data-sources/new');
+      assert.equal(new URL(page.url()).pathname, '/data-sources/new');
     }
     assert(requests.every(request => request.method === 'GET'), 'Route visits must not mutate the API');
     assert.deepEqual(errors, []);

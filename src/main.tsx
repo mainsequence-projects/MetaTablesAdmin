@@ -7,7 +7,11 @@ import "@dev-mainsequence/command-center-sdk/styles.css";
 import "./styles.css";
 import App from "./App";
 
-applyThemePresetToRoot(document.documentElement, { theme: quartzLightTheme });
+applyThemePresetToRoot(document.documentElement, {
+  theme: quartzLightTheme,
+  // SDK controls use the input token for their border, not their background.
+  resolvedTokens: { ...quartzLightTheme.tokens, input: "#C9C8CF" },
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

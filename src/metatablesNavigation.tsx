@@ -10,7 +10,18 @@ export const TimeIndexMetaTableIcon = createLucideIcon("TimeIndexMetaTable", [
 ]);
 
 function MetaTablesMark({ className }: { className?: string }) {
-  return <span className={`metatables-mark ${className ?? ""}`} aria-hidden="true"><span>m</span><i /></span>;
+  return <span className={`metatables-mark ${className ?? ""}`} aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <g strokeWidth="1.5">
+        <path d="m4.8 5.6 4 4.9m-4 7.9 4-4.9M11.8 12h0.7" />
+        <circle cx="3.5" cy="4" r="2.1" />
+        <circle cx="3.5" cy="20" r="2.1" />
+        <circle cx="10" cy="12" r="1.8" />
+      </g>
+      <rect x="12.5" y="8" width="11" height="8" rx="0.65" strokeWidth="1.25" />
+      <path d="M12.5 10.5h11M12.5 13.25h11M16.2 8v8M19.8 8v8" strokeWidth="1.1" />
+    </svg>
+  </span>;
 }
 
 export const metatablesNavigation = defineNavigationApplication({
@@ -24,7 +35,7 @@ export const metatablesNavigation = defineNavigationApplication({
     id: "metatables.catalog",
     label: "Catalog",
     destinations: [
-      { id: "metatables.data-sources", label: "Data Sources", description: "Database connections", href: "/data-sources", icon: Database },
+      { id: "metatables.data-sources", label: "Data Sources", description: "Registered databases", href: "/data-sources", icon: Database },
       { id: "metatables.tables", label: resourceLabels.tables, description: "All registered tables", href: "/tables", icon: Table2 },
       { id: "metatables.time-index-meta-tables", label: resourceLabels["time-index-meta-tables"], description: "Tables indexed by time", href: "/time-index-meta-tables", icon: TimeIndexMetaTableIcon },
       { id: "metatables.data-updates", label: resourceLabels["data-updates"], description: "Configured producers", href: "/data-updates", icon: RefreshCw },
@@ -45,7 +56,6 @@ export const adminNavigation = defineNavigationApplication({
     id: "metatables.administration",
     label: "Admin",
     destinations: [
-      { id: "metatables.admin-data-sources", label: "Data Sources", description: "Manage database connections", href: adminPaths.dataSources, icon: Database },
       { id: "metatables.security", label: "Security", description: "Table access and recovery", href: adminPaths.security, icon: ShieldCheck },
       { id: "metatables.settings", label: "Settings", description: "Runtime and DataSource", href: adminPaths.settings, icon: Settings },
     ],

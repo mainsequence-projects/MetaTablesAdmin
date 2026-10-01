@@ -10,6 +10,16 @@ test("database validation failures and field errors retain useful API messages",
   assert.equal(apiErrorDetail(null), null);
 });
 
+test("query errors retain database diagnostics and translate only message-less codes", () => {
+  assert.equal(apiErrorDetail({ code: "compiled_sql_database_error", detail: "access to sqlite_master.name is prohibited" }),
+    "access to sqlite_master.name is prohibited");
+  assert.equal(apiErrorDetail({ code: "compiled_sql_database_error", detail: 'near "SELEC": syntax error' }),
+    'near "SELEC": syntax error');
+  assert.match(apiErrorDetail({ code: "sql_deadline_exceeded" }), /took too long/);
+  assert.equal(apiErrorDetail({ code: "unknown_sql_error", detail: "Specific database failure" }), "Specific database failure");
+  assert.equal(apiErrorDetail({ code: "compiled_sql_database_error", detail: "compiled_sql_database_error" }), "compiled_sql_database_error");
+});
+
 test("table filters and sorting use the Python API contract", () => {
   assert.deepEqual(tableQuery({ search: "prices", kind: "row", ordering: "-created_at", limit: 25 }), {
     q: "prices", time_indexed: false, management_mode: "platform_managed", ordering: "-creation_date", limit: 25,

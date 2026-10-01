@@ -1,18 +1,19 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Field, Input } from "@dev-mainsequence/command-center-sdk/controls";
 import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import { DataTable, ResourceListPage } from "@dev-mainsequence/command-center-sdk/views";
-import { resolveResourceDetailTabs, type ResourceListResult } from "@dev-mainsequence/command-center-sdk/resource";
+import { resolveResourceDetailTabs } from "@dev-mainsequence/command-center-sdk/resource";
 import { RefreshCw } from "lucide-react";
-import { metaTablesApi, type DataUpdateDetail, type UpdateRun } from "../api";
+import { metaTablesApi, type DataUpdateDetail } from "../api";
 import { updateDetailTabs } from "../detailTabs";
 import { DetailTabIcon } from "../detailTabIcons";
 import { detailPath } from "../navigation";
-import { defineUpdateRunsResource, updatesResource } from "../resources";
+import { updatesResource } from "../resources";
 import { Button, DetailSection, DetailView, display, Facts, formatDate, JsonBlock, StatePanel, useRemote } from "../ui";
-import { useChartColors } from "../useChartColors";
 
+
+const RunExplorer = lazy(() => import("./RunExplorer").then(module => ({ default: module.RunExplorer })));
 const UpdatePipelinePanel = lazy(() => import("./UpdatePipelinePanel").then(module => ({ default: module.UpdatePipelinePanel })));
 
 function statusTone(status?: string | null): "success" | "danger" | "accent" | "neutral" {
@@ -89,37 +90,10 @@ function UpdateFacts({ detail }: { detail: DataUpdateDetail }) {
 }
 
 function RunsTab({ uid }: { uid: string }) {
-  const navigate = useNavigate();
-  const definition = useMemo(() => defineUpdateRunsResource(uid), [uid]);
-  const [page, setPage] = useState<ResourceListResult<UpdateRun> | null>(null);
-  return <>
-    <ResourceListPage definition={definition} embedded pageSize={25} tablePresentation="auto" refreshable onResult={setPage}
-      onRowActivate={run => navigate(`/runs/${encodeURIComponent(run.root_run_uid || run.uid)}?node=${encodeURIComponent(`update:${uid}`)}`)} />
-    {page && page.items.length > 0 && <RunSummary runs={page.items} />}
-  </>;
+  return <Suspense fallback={<StatePanel embedded title="Loading run history…" />}><RunExplorer key={uid} updateUid={uid} /></Suspense>;
 }
 
-function RunSummary({ runs }: { runs: readonly UpdateRun[] }) {
-  const [durationColor] = useChartColors();
-  const complete = runs.filter(run => run.result?.toLowerCase() === "success").length;
-  const failures = runs.filter(run => run.result?.toLowerCase() === "error").length;
-  const durations = runs.map(run => run.duration_seconds ?? 0).filter(value => value > 0);
-  const average = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
-  const max = Math.max(...durations, 1);
-  return <DetailSection title="Execution summary" description="Metrics for the current page of runs.">
-    <Facts items={[
-      { label: "Completed", value: complete },
-      { label: "Errors", value: failures },
-      { label: "Average duration", value: `${average}s` },
-    ]} />
-    <div className="duration-chart" aria-label="Run duration chart">{runs.slice(0, 20).reverse().map(run =>
-      <div key={run.uid} title={`${formatDate(run.started_at)} · ${display(run.duration_seconds, "0")}s`}
-        style={{ height: `${Math.max(8, ((run.duration_seconds ?? 0) / max) * 100)}%`, background: durationColor }} />
-    )}</div>
-  </DetailSection>;
-}
-
-export function LogsTab({ uid, runUid }: { uid?: string; runUid?: string }) {
+export function LogsTab({ uid, runUid, updaterLabel }: { uid?: string; runUid?: string; updaterLabel?: string }) {
   const [level, setLevel] = useState("");
   const [event, setEvent] = useState("");
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
@@ -130,7 +104,7 @@ export function LogsTab({ uid, runUid }: { uid?: string; runUid?: string }) {
     signal => runUid ? metaTablesApi.runLogs(runUid, query, signal) : metaTablesApi.updateLogs(uid!, query, signal));
   const reset = () => { setCursors([undefined]); setGeneration(value => value + 1); };
   const page = remote.status === "ready" ? remote.data : null;
-  return <DetailSection title="Run logs" description={runUid ? `Exact attempt ${runUid}. Refresh to include newly written events.` : "Recent runs in the last seven days. Refresh to include newly written events."}
+  return <DetailSection title="Run logs" description={runUid ? `${updaterLabel ? `${updaterLabel} · ` : ""}Exact attempt ${runUid}. Refresh to include newly written events.` : "Recent runs in the last seven days. Refresh to include newly written events."}
     actions={<Button onClick={reset}>Refresh</Button>}>
     <div className="runtime-form-actions" role="group" aria-label="Log level">
       {["", "debug", "info", "warning", "error", "critical"].map(value => <Button key={value}

@@ -1,6 +1,9 @@
 import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ApplicationStatusScreen } from "@dev-mainsequence/command-center-sdk/feedback";
+import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import { metaTablesApi, type RuntimeContext } from "./api";
+import { DataSourceTypeIcon, sourceEngineLabel } from "./DataSourceTypeIcon";
+import { runtimeDataSourceProblem } from "./runtimeDataSourceProblem";
 import type { RemoteState } from "./ui";
 
 type Context = { runtime: RuntimeContext; refresh: () => Promise<RuntimeContext>;
@@ -85,13 +88,19 @@ export function useRuntimeContext() {
 
 export function DataSourceConfigurationError({ onSettings }: { onSettings?: () => void }) {
   const { runtime } = useRuntimeContext();
-  if (runtime.data_source && !runtime.data_source_error) return null;
+  const problem = runtimeDataSourceProblem(runtime);
+  if (!problem) return null;
+  const source = runtime.data_source ?? runtime.bootstrap?.candidate;
+  const candidate = runtime.bootstrap?.candidate;
   return <ApplicationStatusScreen variant="contained" state="error"
-    title={runtime.data_source ? "DataSource unavailable" : "No DataSource configured"}
-    message={runtime.is_admin !== true ? "Ask an application admin to configure or restore the runtime DataSource."
-      : runtime.data_source_error === "data_source_workflows_unavailable"
-      ? "The selected DataSource does not support table workflows. Select a supported database in Settings."
-      : runtime.bootstrap && !runtime.bootstrap.active ? "Open Settings to configure the runtime DataSource and explicitly run MetaTables migrations, or select an initialized database."
-      : "Select a usable DataSource in Settings to enable table and update workflows."}
+    title={problem.title}
+    message={<ApplicationPageStack>
+      {source && <p><span className="data-source-picker-value"><DataSourceTypeIcon engine={source.class_type} />
+        <strong>{source.display_name}</strong> · {sourceEngineLabel(source.class_type)} · {runtime.local_mode ? "Local" : "Hosted"}
+      </span>{candidate?.class_type === "sqlite" && typeof candidate.configuration.path === "string" && <>
+        <br /><span className="mono muted">{candidate.configuration.path}</span>
+      </>}</p>}
+      <p>{runtime.is_admin === true ? problem.message : "Ask an application admin to complete or restore the runtime DataSource setup."}</p>
+    </ApplicationPageStack>}
     action={runtime.is_admin === true && onSettings ? { label: "Open Settings", onSelect: onSettings } : undefined} />;
 }
