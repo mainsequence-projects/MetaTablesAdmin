@@ -1,4 +1,4 @@
-import { createLucideIcon, Database, History, Layers3, RefreshCw, Settings, ShieldCheck, Table2 } from "lucide-react";
+import { BookOpen, createLucideIcon, Database, History, Layers3, RefreshCw, Settings, ShieldCheck, Table2 } from "lucide-react";
 import { defineNavigationApplication } from "@dev-mainsequence/command-center-sdk/navigation";
 import { adminPaths, resourceLabels } from "./navigation";
 
@@ -39,8 +39,13 @@ export const metatablesNavigation = defineNavigationApplication({
       { id: "metatables.tables", label: resourceLabels.tables, description: "All registered tables", href: "/tables", icon: Table2 },
       { id: "metatables.time-index-meta-tables", label: resourceLabels["time-index-meta-tables"], description: "Tables indexed by time", href: "/time-index-meta-tables", icon: TimeIndexMetaTableIcon },
       { id: "metatables.data-updates", label: resourceLabels["data-updates"], description: "Configured producers", href: "/data-updates", icon: RefreshCw },
-      { id: "metatables.runs", label: "Runs", description: "Historical execution graphs and logs", href: "/runs", icon: History },
       { id: "metatables.namespaces", label: "Namespaces", description: "Catalog groups", href: "/namespaces", icon: Layers3 },
+    ],
+  }, {
+    id: "metatables.monitoring",
+    label: "Monitoring",
+    destinations: [
+      { id: "metatables.runs", label: "Runs", description: "Historical execution graphs and logs", href: "/runs", icon: History },
     ],
   }],
 });
@@ -60,6 +65,14 @@ export const adminNavigation = defineNavigationApplication({
       { id: "metatables.settings", label: "Settings", description: "Runtime and DataSource", href: adminPaths.settings, icon: Settings },
     ],
   }],
+});
+
+export const userGuideNavigation = defineNavigationApplication({
+  id: "metatables.user-guide",
+  label: "User guide",
+  href: "/docs/",
+  icon: BookOpen,
+  subApplications: [],
 });
 
 export const navigationApplications = [metatablesNavigation, adminNavigation];

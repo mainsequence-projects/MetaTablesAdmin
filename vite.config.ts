@@ -1,5 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
+import sirv from "sirv";
 
 export default defineConfig(({ mode }) => {
   const localEnv = loadEnv(mode, process.cwd(), "METATABLES_");
@@ -7,7 +9,27 @@ export default defineConfig(({ mode }) => {
   const localToken = localEnv.METATABLES_LOCAL_TOKEN;
 
   return {
-    plugins: [react()],
+    plugins: [react(), {
+      name: "user-guide",
+      configureServer(server) {
+        const serveGuide = sirv(fileURLToPath(new URL("./dist/docs", import.meta.url)), { dev: true, extensions: ["html"] });
+        server.middlewares.use((req, res, next) => {
+          const path = req.url?.split("?", 1)[0];
+          if (path === "/docs") {
+            res.writeHead(302, { Location: "/docs/" });
+            res.end();
+            return;
+          }
+          next();
+        });
+        server.middlewares.use("/docs", (req, res) => {
+          serveGuide(req, res, () => {
+            res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+            res.end("User guide page not found. Build the guide with npm run build:docs.");
+          });
+        });
+      },
+    }],
     server: {
       host: "127.0.0.1",
       port: 19473,

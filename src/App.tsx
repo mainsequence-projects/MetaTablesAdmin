@@ -11,7 +11,7 @@ import {
 } from "@dev-mainsequence/command-center-sdk/navigation";
 import { applyThemePresetToRoot, mainSequenceTheme, quartzLightTheme, resolveCommandCenterThemeById } from "@dev-mainsequence/command-center-sdk/theme";
 import { setHostedMetaTablesTransport } from "./api";
-import { adminNavigation, metatablesNavigation, navigationApplications } from "./metatablesNavigation";
+import { adminNavigation, metatablesNavigation, navigationApplications, userGuideNavigation } from "./metatablesNavigation";
 import { adminPaths, resourceForPath, resourceLabels, type Resource } from "./navigation";
 import { DataUpdatesPage } from "./pages/DataUpdatesPage";
 import { RunsPage } from "./pages/RunsPage";
@@ -199,6 +199,7 @@ function AuthorizedApplication() {
     activeApplicationId={activeApplicationId}
     activeDestinationId={activeDestinationId}
     applications={applications}
+    footerApplications={[userGuideNavigation]}
     collapsed={railCollapsed}
     onCollapsedChange={setRailCollapsed}
     expandedWidth="160px"
@@ -206,7 +207,10 @@ function AuthorizedApplication() {
     onMenuOpenChange={setMenuOpen}
     onNavigate={handleNavigate}
     openApplicationId={openApplicationId === null || applications.some(item => item.id === openApplicationId) ? openApplicationId : activeApplicationId}
-    onOpenApplicationChange={setOpenApplicationId}
+    onOpenApplicationChange={applicationId => {
+      if (applicationId === userGuideNavigation.id) window.location.assign(userGuideNavigation.href);
+      else setOpenApplicationId(applicationId);
+    }}
     overlayTrigger="floating"
     panelWidth="254px"
     presentation="auto"

@@ -167,7 +167,7 @@ The registries use the mounted MetaTables table/update routes and the namespace
 list, detail, and table reads. `src/apiContract.ts` maps the Python API's public
 field names and filter syntax into SDK view records. Local slash redirects stay
 inside Vite's `/api` proxy so subsequent requests receive its private token.
-The broader parity plan remains in [ADR 0001](docs/adr/0001-independent-metatables-admin.md).
+The broader parity plan remains in [ADR 0001](engineering/adr/0001-independent-metatables-admin.md).
 Some detail actions and permission endpoints remain unavailable. A missing route
 appears as “API capability pending”; an unavailable service appears as an API
 connection error. No sample records or alternate data backend are used.
@@ -329,3 +329,9 @@ Availability and truncation are visible, including missing capture and expired
 local files. The UI uses the same response for local files and hosted SDK reads.
 Local API and producer must share the API-selected workspace; hosted collection
 requires a platform JobRun and the matching generic SDK operation filter.
+
+## User guide
+
+The end-user guide is served at `/docs/` and follows the application menu. Author pages in `docs/`; keep engineering notes in `engineering/`. Navigation lives in `documentation/navigation.json`.
+
+Use Node 24 (`.node-version`). Run `npm run docs:sync` after changing navigation, `npm run docs:check` to validate the guide, and `npm run build` to produce the application plus `dist/docs/`. Vite serves the built guide at `/docs/`; rebuild the docs with `npm run build:docs` after edits, or use `npm run docs:dev` for the live documentation editor on port 3011.

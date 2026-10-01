@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "sidebarId": "userGuideSidebar",
+  "home": {
+    "label": "User guide"
+  },
+  "navigation": [
+    {
+      "id": "metatables",
+      "label": "MetaTables",
+      "kind": "section",
+      "applicationRoute": "/tables",
+      "items": [
+        {
+          "id": "catalog",
+          "label": "Catalog",
+          "kind": "section",
+          "items": [
+            {
+              "id": "data-sources",
+              "label": "Data Sources",
+              "kind": "feature",
+              "applicationRoute": "/data-sources",
+              "pages": [
+                {
+                  "id": "add-data-source",
+                  "label": "Add a Data Source"
+                },
+                {
+                  "id": "query-data-source",
+                  "label": "Query a Data Source"
+                },
+                {
+                  "id": "import-tables",
+                  "label": "Import existing tables"
+                }
+              ]
+            },
+            {
+              "id": "tables",
+              "label": "MetaTables",
+              "kind": "feature",
+              "applicationRoute": "/tables",
+              "pages": [
+                {
+                  "id": "share-table",
+                  "label": "Share a table"
+                }
+              ]
+            },
+            {
+              "id": "time-index-meta-tables",
+              "label": "Time Index MetaTables",
+              "kind": "feature",
+              "applicationRoute": "/time-index-meta-tables",
+              "pages": []
+            },
+            {
+              "id": "data-updates",
+              "label": "Time Index Table Updates",
+              "kind": "feature",
+              "applicationRoute": "/data-updates",
+              "pages": []
+            },
+            {
+              "id": "namespaces",
+              "label": "Namespaces",
+              "kind": "feature",
+              "applicationRoute": "/namespaces",
+              "pages": []
+            }
+          ]
+        },
+        {
+          "id": "monitoring",
+          "label": "Monitoring",
+          "kind": "section",
+          "items": [
+            {
+              "id": "runs",
+              "label": "Runs",
+              "kind": "feature",
+              "applicationRoute": "/runs",
+              "pages": [
+                {
+                  "id": "inspect-run",
+                  "label": "Investigate a run"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "admin",
+      "label": "Admin",
+      "kind": "section",
+      "applicationRoute": "/admin/settings",
+      "items": [
+        {
+          "id": "administration",
+          "label": "Admin",
+          "kind": "section",
+          "items": [
+            {
+              "id": "security",
+              "label": "Security",
+              "kind": "feature",
+              "applicationRoute": "/admin/security"
+            },
+            {
+              "id": "settings",
+              "label": "Settings",
+              "kind": "feature",
+              "applicationRoute": "/admin/settings",
+              "pages": [
+                {
+                  "id": "select-data-source",
+                  "label": "Select a runtime Data Source"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

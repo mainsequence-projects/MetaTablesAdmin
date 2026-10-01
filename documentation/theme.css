@@ -1,0 +1,3 @@
+/* Keep guide links legible in both supported color modes. */
+:root { --ifm-color-primary: #175f9e; }
+[data-theme="dark"] { --ifm-color-primary: #85bdff; }
