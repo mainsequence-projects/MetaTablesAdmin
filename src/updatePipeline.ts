@@ -14,6 +14,8 @@ export type PipelineNode = {
   run_uid?: string | null;
   started_at?: string | null;
   ended_at?: string | null;
+  attempt_started_at?: string | null;
+  attempt_ended_at?: string | null;
   reason?: string | null;
 };
 export type PipelineEdge = { source: string; target: string; kind: "reads" | "writes" | "depends_on" };

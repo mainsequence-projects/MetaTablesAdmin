@@ -174,18 +174,18 @@ export function defineUpdateRunsResource(uid: string) {
 export const runsResource = defineResourceApplication<UpdateRun, string>({
   id: "metatables-runs",
   label: "Runs",
-  description: "Each invocation has its own dependency graph, results and logs.",
+  description: "Recorded attempts, execution graphs, results and logs.",
   itemLabel: "runs",
   getId: run => run.uid,
   adapter: {
     async list({ pageIndex, pageSize, filters, signal }) {
-      const query = Object.fromEntries(["table_update_uid", "outcome", "start_time", "end_time"]
+      const query = Object.fromEntries(["table_update_uid", "outcome", "start_time", "end_time", "root_only"]
         .map(key => [key, typeof filters?.[key] === "string" ? filters[key] : undefined]));
-      return result(await metaTablesApi.rootRuns({ ...query, limit: pageSize, offset: pageIndex * pageSize }, signal), pageIndex, pageSize);
+      return result(await metaTablesApi.listRuns({ ...query, limit: pageSize, offset: pageIndex * pageSize }, signal), pageIndex, pageSize);
     },
   },
   columns: [
-    { id: "updater", header: "Root updater", importance: "primary", renderCell: run => <ResourceIconLabelCell label={display(run.updater_label || run.table_update_uid)} meta={run.uid} /> },
+    { id: "updater", header: "Updater", importance: "primary", renderCell: run => <ResourceIconLabelCell label={display(run.updater_label || run.table_update_uid)} meta={run.uid} /> },
     { id: "started", header: "Started", importance: "primary", renderCell: run => formatDate(run.started_at) },
     { id: "outcome", header: "Outcome", importance: "secondary", renderCell: run => <ResourceStatusCell label={display(run.outcome || run.result)} tone={run.outcome === "succeeded" ? "success" : run.outcome === "failed" ? "danger" : "warning"} /> },
     { id: "ended", header: "Ended", importance: "secondary", renderCell: run => formatDate(run.ended_at) },

@@ -297,9 +297,46 @@ test("run history and log cursors use the implemented MetaTables routes", async 
   assert.equal((await logs).availability, "expired");
 });
 
-test("Runs selects a root invocation and retrieves only its saved graph and exact attempt logs", async () => {
+test("selected Run detail preserves its own identity, timing and outcome independently of its parent", async () => {
   const calls = transport();
-  const history = api.rootRuns({ table_update_uid: "producer", outcome: "failed", limit: 25, offset: 0 });
+  const pending = api.run("selected-attempt");
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/table-update-runs/selected-attempt/");
+  calls[0].respond({ uid: "selected-attempt", root_run_uid: "parent-execution", table_update_uid: "prices",
+    update_time_start: "2026-10-01T09:08:52.880Z", update_time_end: "2026-10-01T09:08:53.532Z",
+    error_on_update: false, outcome: "succeeded", trace_id: "shared-trace" });
+  const selected = await pending;
+  assert.equal(selected.uid, "selected-attempt");
+  assert.equal(selected.root_run_uid, "parent-execution");
+  assert.equal(selected.table_update_uid, "prices");
+  assert.equal(selected.started_at, "2026-10-01T09:08:52.880Z");
+  assert.equal(selected.ended_at, "2026-10-01T09:08:53.532Z");
+  assert.equal(selected.duration_seconds, 0.652);
+  assert.equal(selected.outcome, "succeeded");
+  assert.equal(selected.result, "success");
+});
+
+test("Runs shows attempts without a graph and does not force root-only filtering", async () => {
+  for (const root_only of [undefined, "false"]) {
+    const calls = transport();
+    const history = api.listRuns({ root_only, limit: 25, offset: 0 });
+    await Promise.resolve();
+    const url = new URL(calls[0].path, "https://example.test");
+    assert.equal(url.pathname, "/table-update-runs/");
+    assert.equal(url.searchParams.get("root_only"), root_only ?? null);
+    calls[0].respond({ count: 1, results: [{ uid: "older-attempt", root_run_uid: null,
+      update_time_start: "2026-09-28T10:00:00Z", graph_availability: "unavailable" }] });
+    const page = await history;
+    assert.equal(page.count, 1);
+    assert.equal(page.results[0].uid, "older-attempt");
+    assert.equal(page.results[0].root_run_uid, null);
+    assert.equal(page.results[0].graph_availability, "unavailable");
+  }
+});
+
+test("Runs honors explicit root filtering and retrieves the saved graph and invocation logs", async () => {
+  const calls = transport();
+  const history = api.listRuns({ root_only: "true", table_update_uid: "producer", outcome: "failed", limit: 25, offset: 0 });
   await Promise.resolve();
   const url = new URL(calls[0].path, "https://example.test");
   assert.equal(url.searchParams.get("root_only"), "true");
@@ -320,11 +357,12 @@ test("Runs selects a root invocation and retrieves only its saved graph and exac
   assert.equal((await newGraph).nodes[0].state, "succeeded");
   const selected = (await oldGraph).nodes[0];
   assert.equal(selected.state, "blocked");
-  const logs = api.runLogs(selected.run_uid, { cursor: "saved:50", level: "error" });
+  const logs = api.invocationLogs(selected.run_uid, { cursor: "saved:50", level: "error", run_uid: selected.run_uid });
   await Promise.resolve();
   const logUrl = new URL(calls[3].path, "https://example.test");
-  assert.equal(logUrl.pathname, "/table-update-runs/old-attempt/logs/");
+  assert.equal(logUrl.pathname, "/table-update-runs/old-attempt/invocation-logs/");
   assert.equal(logUrl.searchParams.get("cursor"), "saved:50");
+  assert.equal(logUrl.searchParams.get("run_uid"), "old-attempt");
   calls[3].respond({ rows: [], availability: "expired", next_cursor: null, truncated: false });
   assert.equal((await logs).availability, "expired");
   assert.equal(selected.state, "blocked");

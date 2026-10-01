@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "npm run check && vite build",
     "check": "tsc -b && npm test && npm run theme:audit",
-    "test": "node --test tests/apiContract.test.mjs tests/apiRequests.test.mjs tests/relationImport.test.mjs tests/inFlightReads.test.mjs tests/sourceConfiguration.test.mjs tests/permissionSelection.test.mjs tests/runtimeMigrationStatus.test.mjs tests/runtimeDataSourceStatus.test.mjs tests/detailTabs.test.mjs tests/sdkBoundary.test.mjs tests/updatePipeline.test.mjs tests/ulm.test.mjs tests/sourceQuery.test.mjs",
+    "test": "node --test tests/apiContract.test.mjs tests/apiRequests.test.mjs tests/relationImport.test.mjs tests/inFlightReads.test.mjs tests/sourceConfiguration.test.mjs tests/permissionSelection.test.mjs tests/runtimeMigrationStatus.test.mjs tests/runtimeDataSourceStatus.test.mjs tests/detailTabs.test.mjs tests/sdkBoundary.test.mjs tests/updatePipeline.test.mjs tests/runTimeline.test.mjs tests/ulm.test.mjs tests/sourceQuery.test.mjs",
     "test:proxy": "node --test tests/proxy.test.mjs",
     "check:sdk": "node --test tests/sdkBoundary.test.mjs",
     "theme:audit": "command-center-sdk theme audit --path src",

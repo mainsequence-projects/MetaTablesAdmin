@@ -147,7 +147,6 @@
 .mt-pipeline__inspector-relations > span > a { flex-shrink: 0; }
 .mt-pipeline__inspector-identity summary { cursor: pointer; color: var(--muted-foreground); }
 .mt-pipeline__inspector-identity[open] summary { margin-bottom: 0.5rem; }
-.mt-runs__execution .mt-pipeline__canvas { height: clamp(28rem, 56dvh, 46rem); }
 
 .mt-pipeline__inspector-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0.5rem; }
 .mt-pipeline__inspector-title { display: block; font-size: var(--font-size-body); line-height: var(--line-height-compact); overflow-wrap: anywhere; }

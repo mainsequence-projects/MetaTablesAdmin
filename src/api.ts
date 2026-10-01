@@ -35,7 +35,6 @@ export type RuntimeContext = {
   credential_store?: { provider: "unconfigured" | "sdk_secrets" | "local_encrypted";
     status: "uninitialized" | "unavailable" | "ready" | "managed"; error: string | null } | null;
   is_admin: boolean;
-  application_migrations_available: boolean;
   user_uid?: string;
   local_mode: boolean;
   local_mode_available: boolean;
@@ -508,9 +507,10 @@ export const metaTablesApi = {
   update: async (uid: string, signal?: AbortSignal) => updateRecord(await request<UpdateApiRecord>("GET", `time-index-table-updates/${encodeURIComponent(uid)}/`, { signal })),
   updateRuns: async (uid: string, offset: number, signal?: AbortSignal, limit = 25) => mapPage(page<Parameters<typeof updateRunRecord>[0]>(await request("GET", "table-update-runs/", { query: { table_update_uid: uid, limit, offset }, signal })), updateRunRecord),
   tableRuns: async (uid: string, offset: number, signal?: AbortSignal, limit = 25) => mapPage(page<Parameters<typeof updateRunRecord>[0]>(await request("GET", "table-update-runs/", { query: { output_table_uid: uid, limit, offset }, signal })), updateRunRecord),
-  rootRuns: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) => mapPage(page<Parameters<typeof updateRunRecord>[0]>(await request("GET", "table-update-runs/", { query: { ...query, root_only: "true" }, signal })), updateRunRecord),
+  listRuns: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) => mapPage(page<Parameters<typeof updateRunRecord>[0]>(await request("GET", "table-update-runs/", { query, signal })), updateRunRecord),
+  run: async (uid: string, signal?: AbortSignal) => updateRunRecord(await request<Parameters<typeof updateRunRecord>[0]>("GET", `table-update-runs/${encodeURIComponent(uid)}/`, { signal })),
   runGraph: (uid: string, signal?: AbortSignal) => request<HistoricalRunGraph>("GET", `table-update-runs/${encodeURIComponent(uid)}/graph/`, { signal }),
-  runLogs: (uid: string, query: Record<string, string | number | undefined>, signal?: AbortSignal) => request<UpdateLogPage>("GET", `table-update-runs/${encodeURIComponent(uid)}/logs/`, { query, signal }),
+  invocationLogs: (uid: string, query: Record<string, string | number | undefined>, signal?: AbortSignal) => request<UpdateLogPage>("GET", `table-update-runs/${encodeURIComponent(uid)}/invocation-logs/`, { query, signal }),
   updateLogs: async (uid: string, query: Record<string, string | number | undefined>, signal?: AbortSignal) => request<UpdateLogPage>("GET", `time-index-table-updates/${encodeURIComponent(uid)}/logs/`, { query: { limit: 50, ...query }, signal }),
   listNamespaces: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) => page<NamespaceRecord>(await request("GET", "namespaces/", { query, signal })),
   namespace: (uid: string, signal?: AbortSignal) => request<NamespaceRecord>("GET", `namespaces/${encodeURIComponent(uid)}/`, { signal }),

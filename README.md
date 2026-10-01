@@ -13,19 +13,23 @@
 
 ## Runs and historical graphs
 
-**Runs** places timestamped executions on the left and the selected run's saved
-graph on the right, with updater, outcome and start-time filters.
+**Runs** places timestamped attempts on the left and the selected Run on the right,
+with updater, outcome, start-time and root-only filters heading the history list. Dependency attempts are indented under
+their invocation's root. The header names the Run's updater, outcome, duration,
+start time and UID, and whether it is a root or dependency attempt; dependency
+attempts have a separate **Parent execution** action. Header actions and permalinks
+stay attached to the selected Run, including records with no captured graph.
 `/runs/{run_uid}` preserves the selection. The table **Updates** tab and updater
 **Historical Updates** tab use the same view scoped to their resource, including
-dependency attempts. Selecting a node keeps every visible table connection on the
-canvas and shows its state, timing, dependency links and exact attempt logs.
-Direct links on graph nodes open updater and table details. **Hide history**
-expands the graph while preserving selection and pagination. The selected node
-inspector sits inside the graph at the lower left. **Run logs** remains visible
-in a full-width section below the graph, showing the selected updater's exact
-attempt with filtering, refresh and pagination. Selecting a table or closing the
-inspector shows the root updater's logs, explicitly labeled with its name and
-attempt UID. The definition graph continues to show current relationships
+dependency attempts. **Invocation** draws the saved graph as a timeline on the
+invocation's clock: one row per updater attempt with its attempt record,
+calculation, dependency wait and log events, colored from the active theme's
+status tokens. A row's name opens that attempt. **Lineage graph** opens the saved
+topology canvas on demand. **Logs** reads the whole invocation through
+`/table-update-runs/{run_uid}/invocation-logs/`, or only the selected attempt,
+with level filtering, refresh and load-more; hovering a line highlights its tick.
+**Hide history** gives the Run the full width while preserving selection and
+pagination. The definition graph continues to show current relationships
 and explicitly labels latest state, with a link to the latest recorded run.
 
 Completed graphs do not change when an updater runs again or dependencies are

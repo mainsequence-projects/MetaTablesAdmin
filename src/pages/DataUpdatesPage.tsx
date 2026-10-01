@@ -93,18 +93,18 @@ function RunsTab({ uid }: { uid: string }) {
   return <Suspense fallback={<StatePanel embedded title="Loading run history…" />}><RunExplorer key={uid} updateUid={uid} /></Suspense>;
 }
 
-export function LogsTab({ uid, runUid, updaterLabel }: { uid?: string; runUid?: string; updaterLabel?: string }) {
+export function LogsTab({ uid }: { uid: string }) {
   const [level, setLevel] = useState("");
   const [event, setEvent] = useState("");
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const [generation, setGeneration] = useState(0);
   const cursor = cursors[cursors.length - 1];
   const query = { level: level || undefined, event: event || undefined, cursor, limit: 50 };
-  const remote = useRemote(JSON.stringify(["logs", uid, runUid, level, event, cursor, generation]),
-    signal => runUid ? metaTablesApi.runLogs(runUid, query, signal) : metaTablesApi.updateLogs(uid!, query, signal));
+  const remote = useRemote(JSON.stringify(["logs", uid, level, event, cursor, generation]),
+    signal => metaTablesApi.updateLogs(uid, query, signal));
   const reset = () => { setCursors([undefined]); setGeneration(value => value + 1); };
   const page = remote.status === "ready" ? remote.data : null;
-  return <DetailSection title="Run logs" description={runUid ? `${updaterLabel ? `${updaterLabel} · ` : ""}Exact attempt ${runUid}. Refresh to include newly written events.` : "Recent runs in the last seven days. Refresh to include newly written events."}
+  return <DetailSection title="Run logs" description="Recent runs in the last seven days. Refresh to include newly written events."
     actions={<Button onClick={reset}>Refresh</Button>}>
     <div className="runtime-form-actions" role="group" aria-label="Log level">
       {["", "debug", "info", "warning", "error", "critical"].map(value => <Button key={value}
