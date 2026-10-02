@@ -1,4 +1,4 @@
-import { AlignLeft, ChartNoAxesCombined, Clock3, Code2, FileText, History, LayoutDashboard, Network, ScrollText, ShieldCheck, Table2, type LucideIcon } from "lucide-react";
+import { AlignLeft, CalendarClock, ChartNoAxesCombined, Clock3, Code2, FileText, History, LayoutDashboard, Network, ScrollText, ShieldCheck, Table2, type LucideIcon } from "lucide-react";
 
 const tabIcons: Record<string, LucideIcon> = {
   details: FileText,
@@ -16,6 +16,7 @@ const tabIcons: Record<string, LucideIcon> = {
   overview: LayoutDashboard,
   tables: Table2,
   "query-builder": Code2,
+  "timescale-jobs": CalendarClock,
 };
 
 export function DetailTabIcon({ id }: { id: string }) {

@@ -19,7 +19,7 @@ Choose **MetaTables → Catalog → Time Index MetaTables**, or <a href="/time-i
 - Read **Description** for the table’s purpose and usage.
 - Inspect **Stats** and follow **Updates** to the processes that populate it.
 - Explore related tables in **ULM diagram**.
-- Review **Access** and, when available, **Timescale Policies**.
+- Review **Access** and, on TimescaleDB hypertables, **Timescale Policies**: compress chunks after a period and drop chunks older than a retention period.
 
 ## Common tasks
 
@@ -28,6 +28,8 @@ Search or filter the list, then select an item to open its details. Use the deta
 ## Understand what you see
 
 This view focuses on time-index tables. Stats describe the data currently available, while updates describe the work that produces it. A capability or tab can be unavailable when the database does not support it or the application cannot obtain its current status.
+
+Timescale Policies shows each policy's job status, last success, next run and failures. Writers on a read-write Data Source can change them; everyone else sees them read-only. Retention must be longer than compression. Saving a new retention period asks you to confirm, because chunks older than the cutoff are permanently dropped on every run, including older data backfilled later.
 
 ## If something goes wrong
 

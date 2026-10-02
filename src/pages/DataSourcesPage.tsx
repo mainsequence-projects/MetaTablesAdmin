@@ -17,6 +17,7 @@ import { DetailSection, Facts, StatePanel, Picker, display, useRemote } from "..
 import { RelationImport } from "./RelationImport";
 import { SourceRelationBrowser } from "./RelationRows";
 import { SourceQueryBuilder } from "./SourceQueryBuilder";
+import { TimescaleJobsPanel } from "./TimescaleJobsPanel";
 
 export function DataSourcesPage({ uid }: { uid: string | null }) {
   const { runtime } = useRuntimeContext();
@@ -91,6 +92,7 @@ function SourceDetailPage({ uid }: { uid: string }) {
     {detail && activeTab?.id === "import" && <RelationImport key={uid} source={detail.source} />}
     {detail && activeTab?.id === "query-builder" && (runtime.data_source?.uid === uid
       ? <SourceQueryBuilder key={uid} source={detail.source} /> : <SourceRelationBrowser key={uid} source={detail.source} />)}
+    {detail && activeTab?.id === "timescale-jobs" && <TimescaleJobsPanel key={uid} source={detail.source} />}
   </ResourceDetailShell>;
 }
 

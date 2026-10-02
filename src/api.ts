@@ -230,16 +230,52 @@ export type PermissionsDocument = {
   can_edit: boolean;
 };
 
-export type PolicyConfiguration = {
-  enabled?: boolean;
-  supported?: boolean;
-  after?: string | null;
+/** TimescaleDB stores each policy as a background job; `after: null` removes it. */
+export type TimescalePolicy = {
+  after: string | null;
   schedule_interval?: string | null;
   initial_start?: string | null;
   timezone?: string | null;
-  last_modified?: string | null;
 };
-export type TablePolicies = { compression: PolicyConfiguration; retention: PolicyConfiguration };
+export type TimescalePolicyState = TimescalePolicy & { job_id: number | null };
+export type TimescaleJob = {
+  job_id: number;
+  kind: "compression" | "retention" | "other";
+  proc_name: string;
+  table_uid: string | null;
+  table_identifier: string | null;
+  hypertable_schema: string | null;
+  hypertable_name: string | null;
+  scheduled: boolean;
+  status: "Scheduled" | "Running" | "Paused" | "Failed";
+  schedule_interval: string | null;
+  last_run_status: string | null;
+  last_run_started_at: string | null;
+  last_successful_finish: string | null;
+  next_start: string | null;
+  total_runs: number | null;
+  total_failures: number | null;
+  last_error: string | null;
+};
+export type TimescaleTablePolicies = {
+  table_uid: string;
+  can_edit: boolean;
+  /** `reason`: timescale_extension_missing, timescale_version_unsupported or timescale_not_hypertable. */
+  eligibility: { eligible: boolean; reason: string | null; timescale_version: string | null };
+  compression: TimescalePolicyState;
+  retention: TimescalePolicyState;
+  compression_settings: { segmentby: string[]; orderby: string };
+  compression_stats: { total_chunks: number | null; compressed_chunks: number | null; before_bytes: number | null; after_bytes: number | null } | null;
+  jobs: TimescaleJob[];
+};
+export type TimescalePoliciesUpdate = { compression: TimescalePolicy; retention: TimescalePolicy };
+export type TimescaleJobsPage = {
+  data_source_uid: string;
+  timescale_version: string | null;
+  policy_count: number;
+  failed_count: number;
+  jobs: TimescaleJob[];
+};
 
 export class ApiError extends Error {
   constructor(
@@ -490,6 +526,7 @@ export const metaTablesApi = {
   updateSource: (uid: string, body: SourcePatch) => request<SourceRecord>("PATCH", `data-sources/${encodeURIComponent(uid)}/`, { body }),
   validateSource: (uid: string) => request<SourceRecord>("POST", `data-sources/${encodeURIComponent(uid)}/validate/`, { body: {} }),
   deleteSource: (uid: string) => request<null>("DELETE", `data-sources/${encodeURIComponent(uid)}/`),
+  timescaleJobs: (uid: string, signal?: AbortSignal) => request<TimescaleJobsPage>("GET", `data-sources/${encodeURIComponent(uid)}/timescale-jobs/`, { signal }),
   runSourceQuery: (uid: string, sql: string, maxRows: number, offset = 0, signal?: AbortSignal) =>
     request<SourceQueryResult>("POST", "meta-tables/run-query/", {
       body: { data_source_uid: uid, sql, limits: { max_rows: maxRows, offset, statement_timeout_ms: 15000 } }, signal,
@@ -506,8 +543,8 @@ export const metaTablesApi = {
   tableStats: (uid: string, signal?: AbortSignal) => request<Record<string, unknown>>("GET", `meta-tables/${encodeURIComponent(uid)}/stats`, { signal }),
   tableUpdates: async (uid: string, offset: number, signal?: AbortSignal, limit = 25) => mapPage(page<UpdateApiRecord>(await request("GET", "time-index-table-updates/", { query: { output_table__uid: uid, limit, offset }, signal })), updateRecord),
   tableUpdatePipeline: (uid: string, signal?: AbortSignal, options: { direction?: PipelineDirection; updateUid?: string } = {}) => request<UpdatePipeline>("GET", `meta-tables/${encodeURIComponent(uid)}/update-graph/`, { query: { direction: options.direction, update_uid: options.updateUid }, signal }),
-  tablePolicies: (uid: string, signal?: AbortSignal) => request<TablePolicies>("GET", `meta-tables/${encodeURIComponent(uid)}/policies`, { signal }),
-  saveTablePolicies: (uid: string, value: TablePolicies) => request<TablePolicies>("PATCH", `meta-tables/${encodeURIComponent(uid)}/policies`, { body: value }),
+  timescalePolicies: (uid: string, signal?: AbortSignal) => request<TimescaleTablePolicies>("GET", `meta-tables/${encodeURIComponent(uid)}/timescale-policies/`, { signal }),
+  saveTimescalePolicies: (uid: string, body: TimescalePoliciesUpdate) => request<TimescaleTablePolicies>("PUT", `meta-tables/${encodeURIComponent(uid)}/timescale-policies/`, { body }),
   securityResources: (search: string, offset: number, signal?: AbortSignal) => request<{ tables: Principal[]; namespaces: Principal[] }>("GET", "security/resources/", { query: { search, offset }, signal }),
   createSecurityNamespace: (name: string) => request<Principal>("POST", "security/namespaces/", { body: { name } }),
   databasePermissionStatus: (signal?: AbortSignal) => request<DatabasePermissionStatus>("GET", "security/database-permissions/", { signal }),

@@ -19,6 +19,7 @@ Choose **MetaTables → Catalog → Data Sources**, or <a href="/data-sources">o
 - Use **Details** to review its database and access settings.
 - Open **Query builder** to inspect data.
 - Where available, use **Import** to register existing tables in the catalog.
+- On TimescaleDB sources, use **Jobs** to check compression and retention jobs, filter to failed jobs, and open each job's table.
 - Admins can add Data Sources, test their settings, and edit manageable sources.
 
 ## Common tasks

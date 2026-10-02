@@ -117,6 +117,38 @@ test("the Description tab requests the mounted table document endpoint", async (
   assert.deepEqual(await pending, document);
 });
 
+test("Timescale policies and jobs use the ADR 0015 routes", async () => {
+  const calls = transport();
+  const policies = api.timescalePolicies("daily close");
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/meta-tables/daily%20close/timescale-policies/");
+  assert.equal(calls[0].init.method, "GET");
+  calls[0].respond({ table_uid: "daily close" });
+  assert.deepEqual(await policies, { table_uid: "daily close" });
+
+  const body = { compression: { after: "7 days", schedule_interval: null, initial_start: null, timezone: null },
+    retention: { after: null, schedule_interval: null, initial_start: null, timezone: null } };
+  const saved = api.saveTimescalePolicies("daily close", body);
+  await Promise.resolve();
+  assert.equal(calls[1].path, "/meta-tables/daily%20close/timescale-policies/");
+  assert.equal(calls[1].init.method, "PUT");
+  assert.deepEqual(JSON.parse(calls[1].init.body), body);
+  calls[1].respond({ table_uid: "daily close", can_edit: true });
+  assert.deepEqual(await saved, { table_uid: "daily close", can_edit: true });
+
+  const jobs = api.timescaleJobs("timescale-source");
+  await Promise.resolve();
+  assert.equal(calls[2].path, "/data-sources/timescale-source/timescale-jobs/");
+  calls[2].respond({ data_source_uid: "timescale-source", jobs: [] });
+  assert.deepEqual(await jobs, { data_source_uid: "timescale-source", jobs: [] });
+});
+
+test("a rejected policy save explains the Timescale code", async () => {
+  setTransport(async () => Response.json({ detail: "timescale_retention_not_after_compression" }, { status: 422 }));
+  await assert.rejects(api.saveTimescalePolicies("daily-close", { compression: { after: "30 days" }, retention: { after: "7 days" } }),
+    error => error.status === 422 && /longer than compression/.test(error.message));
+});
+
 test("the Admin shares concurrent runtime-context reads and re-fetches after completion", async () => {
   const calls = transport();
   const first = api.runtimeContext(), second = api.runtimeContext();
