@@ -13,7 +13,7 @@ import { Badge, Picker, useRemote } from "./ui";
 export function RuntimeHostedSourceSelection({ disabled = false }: { disabled?: boolean }) {
   const navigate = useNavigate();
   const { runtime, refresh } = useRuntimeContext();
-  const bootstrap = runtime.local_mode ? runtime.hosted_bootstrap : runtime.bootstrap;
+  const bootstrap = runtime.bootstrap;
   const [selectedUid, setSelectedUid] = useState(bootstrap?.selected_source_uid ?? "");
   const [revision, setRevision] = useState(0);
   const sources = useRemote(`data-sources-${revision}`, signal => metaTablesApi.sources("", 0, signal, 500));
@@ -34,7 +34,7 @@ export function RuntimeHostedSourceSelection({ disabled = false }: { disabled?: 
   }
   return <ApplicationPageStack as="section" aria-label="Hosted runtime DataSource">
     <ApplicationPageHeader title="2. DataSource" titleAs="h3"
-      description="Register a DataSource in Data Sources, then select one here for the hosted runtime. Selection and runtime switching are separate actions."
+      description="Register a hosted database in Data Sources, then select it here for this runtime."
       actions={<Badge tone={bootstrap?.active ? "success" : bootstrap?.error ? "danger" : "neutral"}>{status}</Badge>} />
     {sources.status === "error" && <p role="alert">Unable to load registered DataSources: {sources.error.message}</p>}
     {sources.status === "loading" && <p className="muted">Loading registered DataSources…</p>}
@@ -52,18 +52,17 @@ export function RuntimeHostedSourceSelection({ disabled = false }: { disabled?: 
       <Button onClick={() => navigate("/data-sources/new")}>Add DataSource</Button>
       <Button disabled={busy} onClick={() => setRevision(value => value + 1)}>Refresh list</Button>
       <Button variant="primary" pending={pending} disabled={busy || !selected}
-        onClick={() => void perform(() => metaTablesApi.selectHostedSource(selectedUid, runtime.local_mode))}>Select DataSource</Button>
+        onClick={() => void perform(() => metaTablesApi.selectHostedSource(selectedUid))}>Select DataSource</Button>
     </div>
     {error && <p role="alert"><Badge tone="danger">Selection failed</Badge> {error}</p>}
     {bootstrap?.error && <p role="alert">{bootstrap.error}</p>}
     {bootstrap?.candidate && <p><span className="data-source-picker-value"><DataSourceTypeIcon engine={bootstrap.candidate.class_type} />
-      <strong>Selected:</strong> {bootstrap.candidate.display_name} · {sourceEngineLabel(bootstrap.candidate.class_type)}</span>
-      {runtime.local_mode && <><br />The local runtime remains active until you choose Switch to Hosted.</>}</p>}
-    {!runtime.local_mode && bootstrap && !bootstrap.active && bootstrap.status === "ready" &&
+      <strong>Selected:</strong> {bootstrap.candidate.display_name} · {sourceEngineLabel(bootstrap.candidate.class_type)}</span></p>}
+    {bootstrap && !bootstrap.active && bootstrap.status === "ready" &&
       <div><Button variant="primary" pending={pending} disabled={busy} onClick={() => void perform(metaTablesApi.activateRuntimeSource)}>Use this DataSource</Button></div>}
-    {!runtime.local_mode && bootstrap && !bootstrap.active && bootstrap.status === "registration_required" && migrationStatus !== "pending" &&
+    {bootstrap && !bootstrap.active && bootstrap.status === "registration_required" && migrationStatus !== "pending" &&
       <div><Button variant="primary" pending={pending} disabled={busy} onClick={() => void perform(metaTablesApi.migrateRuntimeSource)}>Finish DataSource setup</Button></div>}
     {bootstrap?.candidate && <RuntimeMigrations bootstrap={bootstrap} editing={false} disabled={busy} pending={pending}
-      onApply={runtime.local_mode ? undefined : () => void perform(metaTablesApi.migrateRuntimeSource)} />}
+      onApply={() => void perform(metaTablesApi.migrateRuntimeSource)} />}
   </ApplicationPageStack>;
 }

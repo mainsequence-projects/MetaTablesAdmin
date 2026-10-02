@@ -13,17 +13,17 @@ Choose **Admin → Settings**, or <a href="/admin/settings">open Settings</a>. P
 
 ## What you can do
 
-The **Runtime** section brings together **API runtime mode** and **Data Source**. Choose Local to use the local SQLite Data Source, or prepare a registered Data Source for Hosted mode. Review **Migrations** to see whether its database setup is current.
+The **Runtime** section brings together **API runtime mode** and **Data Source**. Choose Local to use the local SQLite Data Source, or switch to Hosted and select one of its registered Data Sources. Review **Migrations** to see whether its database setup is current.
 
 ## Common tasks
 
 - [Select a runtime Data Source](select-data-source.md).
-- Add a database first in [Data Sources](../../../metatables/catalog/data-sources/add-data-source.md), then return here and refresh the available list.
+- In Hosted mode, add a database in [Data Sources](../../../metatables/catalog/data-sources/add-data-source.md), then return here and refresh the available list.
 - Compare **Applied in database**, **Latest in migration files**, and **Pending revisions** before applying migrations.
 
 ## Understand what you see
 
-Choosing a mode or a Data Source in a control prepares a change. The action shown below it applies that change. Preparing Hosted settings while Local is active does not switch the runtime on its own.
+Choosing a mode or a Data Source in a control prepares a change. The action shown below it applies that change. Each mode lists only its own Data Sources, so Hosted Data Sources are registered and selected after switching to Hosted.
 
 A ready Data Source can be selected for use. A source marked as needing initialization, registration, or migrations needs the corresponding setup action first. Disabled actions should be read together with the adjacent status message.
 

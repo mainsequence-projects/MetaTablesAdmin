@@ -97,8 +97,7 @@ function SourceDetailPage({ uid }: { uid: string }) {
 function SourceDetail({ source, summary, refresh, setError }: { source: SourceRecord; summary: SourceSummary; refresh: () => void; setError: (message: string) => void }) {
   const { runtime } = useRuntimeContext();
   const canManage = runtime.is_admin === true && source.can_manage === true;
-  const selectedForHosted = source.class_type !== "sqlite" &&
-    (runtime.hosted_bootstrap?.selected_source_uid === source.uid || runtime.bootstrap?.selected_source_uid === source.uid);
+  const selectedForHosted = source.class_type !== "sqlite" && runtime.bootstrap?.selected_source_uid === source.uid;
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);

@@ -14,12 +14,10 @@ export function SettingsPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const environment = runtime.local_mode ? runtime.hosted_environment_target : runtime.hosted_environment;
-  const hostedEngine = runtime.hosted_bootstrap?.candidate?.class_type ?? (!runtime.local_mode ? runtime.data_source?.class_type : null);
+  const hostedEngine = !runtime.local_mode ? runtime.bootstrap?.candidate?.class_type ?? runtime.data_source?.class_type : null;
   const activeMode = runtime.local_mode ? "local" : "hosted";
   const modeChanged = mode !== activeMode;
   const canSwitch = runtime.local_mode_available && runtime.runtime_switch_available;
-  const hostedSourceSelected = Boolean(runtime.hosted_bootstrap?.selected_source_uid);
-  const switchNeedsSource = modeChanged && mode === "hosted" && !hostedSourceSelected;
   async function check() {
     setBusy(true); setError("");
     try { await refresh(); } catch (e) { setError(e instanceof Error ? e.message : "Runtime check failed"); }
@@ -61,11 +59,14 @@ export function SettingsPage() {
         </ApplicationCardGrid>
         {!canSwitch && <p className="muted">This mode is active. Runtime switching is managed by the API launch configuration.</p>}
       </ApplicationPageStack>
-      {mode === "hosted" ? <RuntimeHostedSourceSelection disabled={busy} /> : modeChanged
-        ? <ApplicationPageHeader title="2. DataSource" titleAs="h3" description="Switch to Local to manage its workspace database." />
+      {modeChanged
+        ? <ApplicationPageHeader title="2. DataSource" titleAs="h3" description={mode === "hosted"
+          ? "Each mode has its own DataSources. Switch to Hosted, then register its database in Data Sources and select it here."
+          : "Switch to Local to manage its workspace database."} />
+        : mode === "hosted" ? <RuntimeHostedSourceSelection disabled={busy} />
         : <RuntimeDataSourceSetup key={mode} mode="local" disabled={busy} />}
-      {modeChanged && canSwitch && <div>{switchNeedsSource && <p className="muted">Select a hosted DataSource above before switching the API runtime.</p>}
-        <Button variant="primary" pending={busy} disabled={busy || switchNeedsSource}
+      {modeChanged && canSwitch && <div>
+        <Button variant="primary" pending={busy} disabled={busy}
         onClick={() => { setBusy(true); void switchMode(mode).finally(() => setBusy(false)); }}>
         Switch to {mode === "local" ? "Local" : "Hosted"}
       </Button></div>}

@@ -141,11 +141,11 @@ the same launcher and enable Python subprocess debugging.
 
 ## Switch to hosted storage
 
-Use **Settings → Runtime mode → Hosted → Apply runtime mode**. One Vite site and
+Use **Settings → Runtime mode → Hosted → Switch to Hosted**. One Vite site and
 API address serve both modes; there is no second hosted launch configuration.
-Configure the hosted runtime DataSource in Settings using connection settings and
-platform Secret references, then explicitly initialize it or select an already
-initialized database. There is no independent catalog URL. The supervised developer API uses the
+Each mode lists only its own DataSources: after switching, register the hosted
+database in Data Sources (its password becomes a platform Secret), select it in
+Settings, then explicitly initialize it or use an already initialized database. There is no independent catalog URL. The supervised developer API uses the
 existing SDK developer session and loopback token in either storage mode.
 
 The API rejects switching during active requests, unfinished updates, open

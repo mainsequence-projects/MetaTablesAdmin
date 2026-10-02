@@ -53,7 +53,6 @@ export type RuntimeContext = {
   git_source: Record<string, string> | null;
   data_source_selection: "local_workspace" | "catalog_default" | "runtime_override" | "runtime_binding";
   bootstrap: RuntimeBootstrap | null;
-  hosted_bootstrap?: RuntimeBootstrap | null;
   data_source_error: string | null;
   data_source: {
     uid: string; class_type: string; status: string;
@@ -443,7 +442,7 @@ export const metaTablesApi = {
   refreshRelation: (uid: string) => request<{ ok: boolean }>("POST", `meta-tables/${encodeURIComponent(uid)}/introspect/`, { body: {} }),
   readRelation: (uid: string, body: RelationReadRequest, signal?: AbortSignal) => request<RelationRowsResult>("POST", `meta-tables/${encodeURIComponent(uid)}/read/`, { body, signal }),
   configureRuntimeSource: (body: RuntimeSourceInput) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/configure/", { body }),
-  selectHostedSource: (uid: string, localMode: boolean) => request<RuntimeBootstrap>("POST", localMode ? "runtime-bootstrap/hosted/select/" : "runtime-bootstrap/select/", { body: { source_uid: uid } }),
+  selectHostedSource: (uid: string) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/select/", { body: { source_uid: uid } }),
   migrateRuntimeSource: () => request<RuntimeBootstrap>("POST", "runtime-bootstrap/migrate/"),
   activateRuntimeSource: () => request<RuntimeBootstrap>("POST", "runtime-bootstrap/activate/"),
   destroyLocalRuntime: (path: string, confirmation: string) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/destroy-local/", { body: { path, confirmation } }),
