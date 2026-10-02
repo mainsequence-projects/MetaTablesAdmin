@@ -249,6 +249,9 @@ and foreign keys do not create dependency edges.
 static-site release with SPA routing to `/index.html`, Node 24, and `dist` output.
 Automatic deployment is enabled for every commit to the connected repository
 branch. The browser icon uses the same MetaTables mark as the application.
+The workflow's `navigation_link` places the site in Command Center, using the
+single-color mask `public/navigation-icon.svg` of that mark; the platform rejects
+gradients and text in navigation masks.
 The platform supplies the exact trusted host origin as `VITE_COMMAND_CENTER_ORIGIN`
 and sets the gateway's iframe CSP. That variable is platform-reserved; do not
 configure it in frontend environment files or the release's build environment.
@@ -259,14 +262,12 @@ the host user remounts the API runtime and clears the previous person's page sta
 A deployed direct link without host context displays an unavailable state. The
 Vite development proxy and its `METATABLES_*` variables are local server settings.
 
-The target MetaTables API release is separate from the host origin. This binding
-currently uses the public `VITE_METATABLES_RESOURCE_RELEASE_UID` value. It must
-identify an existing MetaTables FastAPI release; an undeployed API cannot receive
-delegated requests. Local Vite development requires neither embed value. Once a
-stable API release exists, its UID can be owned by the application in source, as
-the Mexico Fund Competition site does, rather than requiring a per-build setting.
+The target MetaTables API release is separate from the host origin. The workflow's
+`build_environment` binds it through the public `VITE_METATABLES_RESOURCE_RELEASE_UID`
+value, which must identify an existing MetaTables FastAPI release; an undeployed API
+cannot receive delegated requests. Local Vite development requires neither embed value.
 
-The SDK's pinned `0.5.10` skills are installed in `.agents/skills/command-center`. Use those instructions and the public SDK exports for any new navigation, layout, controls, theme, feedback, or resource view. Keep the existing MetaTables mark as the one local visual asset.
+The SDK's pinned `0.5.10` skills are installed in `.agents/skills/command-center`. Use those instructions and the public SDK exports for any new navigation, layout, controls, theme, feedback, or resource view. Keep the existing MetaTables mark and its navigation mask as the only local visual assets.
 
 ## Security model
 
