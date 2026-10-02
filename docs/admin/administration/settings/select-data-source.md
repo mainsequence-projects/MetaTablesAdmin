@@ -26,4 +26,4 @@ The runtime uses the selected Data Source after you apply the change and complet
 
 ## If something goes wrong
 
-Choosing values alone does not switch the runtime. If a database you added is missing from the Hosted list, it was registered while Local was active; register it again in Hosted mode. If the action is disabled, review the status beside the selection. Check that the source is enabled and allows writing. Do not use a local database reset to resolve Hosted setup problems.
+If the selection shows **Needs attention**, the database cannot be secured by its login; the listed reasons name what the database operator must change, and migrations stay unavailable until you select a database that qualifies. Choosing values alone does not switch the runtime. If a database you added is missing from the Hosted list, it was registered while Local was active; register it again in Hosted mode. If the action is disabled, review the status beside the selection. Check that the source is enabled and allows writing. Do not use a local database reset to resolve Hosted setup problems.

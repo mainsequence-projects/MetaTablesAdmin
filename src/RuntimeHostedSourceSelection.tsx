@@ -18,18 +18,21 @@ export function RuntimeHostedSourceSelection({ disabled = false }: { disabled?: 
   const [revision, setRevision] = useState(0);
   const sources = useRemote(`data-sources-${revision}`, signal => metaTablesApi.sources("", 0, signal, 500));
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{ label: string; message: string } | null>(null);
+  const [notice, setNotice] = useState("");
   const busy = pending || disabled;
   const choices = sources.status === "ready" ? sources.data.results.filter(source =>
     sourceEngines.some(engine => engine.value === source.class_type) && source.storage_access_mode === "read_write") : [];
   const selected = choices.find(source => source.uid === selectedUid);
   const status = bootstrap?.active ? "Active" : bootstrap?.status === "ready" ? "Ready" : bootstrap?.status === "migration_required"
-    ? "Migrations needed" : bootstrap?.status === "registration_required" ? "Registration needed" : "Selection needed";
+    ? "Migrations needed" : bootstrap?.status === "registration_required" ? "Registration needed"
+    : bootstrap?.status === "incompatible" ? "Needs attention" : bootstrap?.status === "unavailable" ? "Unavailable" : "Selection needed";
   const migrationStatus = bootstrap ? runtimeMigrationStatus(bootstrap) : null;
-  async function perform(action: () => Promise<unknown>) {
-    setPending(true); setError("");
-    try { await action(); await refresh(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "DataSource selection failed."); }
+  // Every action reports its outcome; a stored setup error stays visible below.
+  async function perform(action: () => Promise<unknown>, failed: string, done: string) {
+    setPending(true); setError(null); setNotice("");
+    try { await action(); await refresh(); setNotice(done); }
+    catch (cause) { setError({ label: failed, message: cause instanceof Error ? cause.message : `${failed}.` }); }
     finally { setPending(false); }
   }
   return <ApplicationPageStack as="section" aria-label="Hosted runtime DataSource">
@@ -52,17 +55,19 @@ export function RuntimeHostedSourceSelection({ disabled = false }: { disabled?: 
       <Button onClick={() => navigate("/data-sources/new")}>Add DataSource</Button>
       <Button disabled={busy} onClick={() => setRevision(value => value + 1)}>Refresh list</Button>
       <Button variant="primary" pending={pending} disabled={busy || !selected}
-        onClick={() => void perform(() => metaTablesApi.selectHostedSource(selectedUid))}>Select DataSource</Button>
+        onClick={() => void perform(() => metaTablesApi.selectHostedSource(selectedUid), "Selection failed",
+          `${selected?.display_name ?? "The DataSource"} is selected for this runtime. Complete its setup below.`)}>Select DataSource</Button>
     </div>
-    {error && <p role="alert"><Badge tone="danger">Selection failed</Badge> {error}</p>}
-    {bootstrap?.error && <p role="alert">{bootstrap.error}</p>}
+    {notice && <p role="status"><Badge tone="success">Done</Badge> {notice}</p>}
+    {error && <p role="alert"><Badge tone="danger">{error.label}</Badge> {error.message}</p>}
+    {bootstrap?.error && bootstrap.error !== error?.message && <p role="alert"><Badge tone="danger">{bootstrap.status === "incompatible" ? "Needs attention" : "Setup failed"}</Badge> {bootstrap.error}</p>}
     {bootstrap?.candidate && <p><span className="data-source-picker-value"><DataSourceTypeIcon engine={bootstrap.candidate.class_type} />
       <strong>Selected:</strong> {bootstrap.candidate.display_name} · {sourceEngineLabel(bootstrap.candidate.class_type)}</span></p>}
     {bootstrap && !bootstrap.active && bootstrap.status === "ready" &&
-      <div><Button variant="primary" pending={pending} disabled={busy} onClick={() => void perform(metaTablesApi.activateRuntimeSource)}>Use this DataSource</Button></div>}
+      <div><Button variant="primary" pending={pending} disabled={busy} onClick={() => void perform(metaTablesApi.activateRuntimeSource, "Activation failed", "The runtime DataSource is active.")}>Use this DataSource</Button></div>}
     {bootstrap && !bootstrap.active && bootstrap.status === "registration_required" && migrationStatus !== "pending" &&
-      <div><Button variant="primary" pending={pending} disabled={busy} onClick={() => void perform(metaTablesApi.migrateRuntimeSource)}>Finish DataSource setup</Button></div>}
+      <div><Button variant="primary" pending={pending} disabled={busy} onClick={() => void perform(metaTablesApi.migrateRuntimeSource, "Setup failed", "DataSource setup finished; the runtime is active.")}>Finish DataSource setup</Button></div>}
     {bootstrap?.candidate && <RuntimeMigrations bootstrap={bootstrap} editing={false} disabled={busy} pending={pending}
-      onApply={() => void perform(metaTablesApi.migrateRuntimeSource)} />}
+      onApply={() => void perform(metaTablesApi.migrateRuntimeSource, "Migrations failed", "MetaTables migrations applied; the runtime is active.")} />}
   </ApplicationPageStack>;
 }
