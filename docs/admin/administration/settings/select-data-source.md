@@ -18,7 +18,8 @@ You need admin access. Each mode has its own Data Sources: Local lists its works
 3. In Hosted mode, register the database in [Data Sources](../../../metatables/catalog/data-sources/add-data-source.md). Its password is saved as a managed Secret.
 4. Return to **Settings**, choose the Data Source from the list (choose **Refresh list** if you just added it), and choose **Select DataSource**.
 5. Complete any required setup using **Finish DataSource setup** or **Use this DataSource** when offered. Review **Migrations**; if updates are pending, confirm the active target and use **Run MetaTables migrations** when you are ready to apply them.
-6. Use **Refresh runtime** and confirm that the intended mode and Data Source are active.
+6. While an action runs, Settings shows **In progress** and then **Done** or the reason it failed. Migrations over a remote database connection can take several minutes; keep the page open.
+7. Use **Refresh runtime** and confirm that the intended mode and Data Source are active.
 
 ## Expected result
 
