@@ -2,9 +2,8 @@ api_version: "2.3.0"
 name: metatables-admin
 resources:
   - key: metatables-admin
-    kind: resource_release
+    kind: static_site
     spec:
-      release_kind: static_site
       name: MetaTables Admin
       root_directory: ""
       framework: vite
