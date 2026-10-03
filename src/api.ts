@@ -53,9 +53,7 @@ export type RuntimeContext = {
   user_uid?: string;
   local_mode: boolean;
   local_mode_available: boolean;
-  runtime_switch_available: boolean;
   runtime_instance_id: string | null;
-  runtime_switch_error: string | null;
   api_endpoint: string;
   hosted_environment: {
     uid: string | null;
@@ -64,7 +62,6 @@ export type RuntimeContext = {
     is_production: boolean | null;
     required_repository_branch: string | null;
   } | null;
-  hosted_environment_target?: RuntimeContext["hosted_environment"];
   git_source: Record<string, string> | null;
   data_source_selection: "local_workspace" | "catalog_default" | "runtime_override" | "runtime_binding";
   bootstrap: RuntimeBootstrap | null;
@@ -521,8 +518,6 @@ export const metaTablesApi = {
     }
     return context;
   },
-  selectRuntime: (mode: "local" | "hosted", signal?: AbortSignal) =>
-    request<{ mode: "local" | "hosted"; restarting: boolean }>("POST", "runtime-mode/", { body: { mode }, signal }),
   sources: (search: string, offset: number, signal?: AbortSignal, limit = 25) => request<Page<SourceRecord>>("GET", "data-sources/", { query: { search, limit, offset }, signal }),
   sourceSummary: (uid: string, signal?: AbortSignal) => request<SourceSummary>("GET", `data-sources/${encodeURIComponent(uid)}/summary/`, { signal }),
   source: (uid: string, signal?: AbortSignal) => request<SourceRecord>("GET", `data-sources/${encodeURIComponent(uid)}/`, { signal }),

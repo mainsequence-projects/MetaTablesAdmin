@@ -14,4 +14,4 @@ Manage sharing and review the database used by the application runtime.
 ## Choose a feature
 
 - [Security](security/index.md) — review access and create namespaces.
-- [Settings](settings/index.md) — choose a runtime mode, review the runtime database, and check setup status.
+- [Settings](settings/index.md) — see the active runtime mode, review the runtime database, and check setup status.

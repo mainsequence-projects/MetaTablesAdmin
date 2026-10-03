@@ -128,8 +128,7 @@ Settings owns changes to the complete runtime binding. In hosted mode, remote so
 is available and SQLite registrations are rejected.
 The backend's `configuration.yaml` controls `local_mode_available`. Set it to
 `true` for this developer workflow; environment injection cannot enable the
-capability or select the runtime. Mode selection is saved in the backend's ignored
-`.local/runtime-selection.json`. A fresh launch selects Local.
+capability. The local developer API always runs Local.
 Local actor scope comes directly from the SDK; no membership setup command is
 required. The backend's `docs/operations/local-runtime.md` contains the complete
 local runtime setup, configuration, and troubleshooting guide.
@@ -149,26 +148,12 @@ The backend checkout provides the same local launch configuration, with
 `metatables.adminPath` identifying this admin checkout. Both configurations run
 the same launcher and enable Python subprocess debugging.
 
-## Switch to hosted storage
+## Hosted data
 
-Use **Settings → Runtime mode → Hosted → Switch to Hosted**. One Vite site and
-API address serve both modes; there is no second hosted launch configuration.
-Hosted mode reads the same `runtime_database` declaration and Environment Secret as
-the deployed API, so both use the same database. The developer API never migrates it:
-while the local branch has a newer migration than the deployed API, it reports
-`migration_required` until that code is deployed. Each mode lists only its own
-DataSources. There is no independent catalog URL. The supervised developer API uses the
-existing SDK developer session and loopback token in either storage mode.
-
-The API rejects switching during active requests, unfinished updates, open
-migration connections, reserved migrations or unresolved physical operations. The old worker exits before its
-replacement starts. Vite remains running; the UI blocks work, reloads context and
-clears cached views. Failed activation restores the previous worker and shows an
-error. Catalogs and table data remain in their respective bindings.
-
+There is no runtime switch. Hosted data is reached through the deployed API and
+Admin, whose Settings shows the deployment-declared runtime database read-only.
 Shared deployments set `local_mode_available: false`; their API keeps signed
-caller verification and does not expose the selector. The API independently
-rejects switching, so hiding the UI is not the enforcement boundary.
+caller verification.
 
 For frontend-only work against an already configured API, use `npm run dev`.
 Set `METATABLES_API_TARGET` in `.env.local` to change that API target.

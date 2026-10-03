@@ -43,7 +43,7 @@ try {
         await readiness;
         if (identityFailure) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Current identity facts unavailable.' }) });
         result = { is_admin: isAdmin, user_uid: uid, local_mode: local, local_mode_available: true,
-          api_endpoint: url, runtime_instance_id: 'worker-1', runtime_switch_available: false,
+          api_endpoint: url, runtime_instance_id: 'worker-1',
           data_source: initialized ? source : null, data_source_error: initialized ? null : 'runtime_not_initialized',
           bootstrap: { active: initialized, status: initialized ? 'ready' : 'unconfigured', managed_by: local ? 'settings' : 'deployment', declaration: null,
             candidate: null, current_revisions: [], required_revisions: [] },
