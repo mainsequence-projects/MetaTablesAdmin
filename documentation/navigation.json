@@ -116,8 +116,8 @@
               "applicationRoute": "/admin/settings",
               "pages": [
                 {
-                  "id": "select-data-source",
-                  "label": "Select a runtime Data Source"
+                  "id": "runtime-database",
+                  "label": "Set up the runtime database"
                 }
               ]
             }

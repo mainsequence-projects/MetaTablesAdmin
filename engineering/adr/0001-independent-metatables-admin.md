@@ -148,3 +148,14 @@ Selecting the runtime DataSource is an admin operation within Settings; its UI
 guard and API admission remain enforced.
 
 Table rows are queried from the DataSource detail Query builder. Table details do not expose a Data Snapshot tab or endpoint.
+
+## Hosted runtime database declared by the deployment (2026-10-03)
+
+MetaTables #13: the deployment declares the hosted runtime database (`runtime_database`
+in the API's `configuration.yaml`; the connection URI in the Environment Secret it
+names), and its migration Job verifies, migrates and registers it before the API rolls
+out. Hosted Settings is read-only (`bootstrap.managed_by: "deployment"`): it shows the
+declaration, the resolved connection, the status and the migration revisions. The
+Hosted DataSource picker and its select, activate and migrate actions are removed, and
+Hosted DataSources can be added only once the runtime is active. Selecting or
+initializing the runtime DataSource in Settings now applies to Local mode only.

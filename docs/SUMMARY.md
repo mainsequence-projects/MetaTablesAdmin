@@ -21,4 +21,4 @@ This map and the Docusaurus sidebar are generated from `documentation/navigation
   - [Admin](admin/administration/index.md)
     - [Security](admin/administration/security/index.md)
     - [Settings](admin/administration/settings/index.md)
-      - [Select a runtime Data Source](admin/administration/settings/select-data-source.md)
+      - [Set up the runtime database](admin/administration/settings/runtime-database.md)

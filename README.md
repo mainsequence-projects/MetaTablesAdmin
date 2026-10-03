@@ -39,20 +39,30 @@ Expired logs do not erase catalog outcomes. Earlier records without snapshots
 show historical graph unavailable, and current permissions filter every read.
 
 The API requires migration `0004_historical_run_graphs`, applied explicitly in
-Settings after restart. Scheduling remains with Main Sequence Jobs.
+Settings after restart in Local mode and by the deployment in Hosted mode.
+Scheduling remains with Main Sequence Jobs.
 
 ## Runtime and Settings
 
 The application initializes through the MetaTables API's `/runtime-context/`.
 **Settings** shows the API mode and endpoint, the verified hosted Environment,
-and its DataSource setting. Settings and Admin Data Sources remain available before
-initialization. Data Sources shows the selected runtime connection and its migration
-status, and allows hosted connections to be registered. Tables and updates wait
-for initialization. A configured SQLite file with pending migrations
-is shown as requiring migrations, rather than as an absent DataSource. Configure the runtime
-DataSource, check it, and explicitly run MetaTables migrations or select an already
-initialized database. Local uses one SQLite file; hosted uses PostgreSQL/TimescaleDB.
+and the runtime database. Settings and Data Sources remain available before
+initialization; tables and updates wait for it. A configured database with pending
+migrations is shown as requiring migrations, rather than as an absent DataSource.
 That database contains both system records and user tables. Startup never migrates it.
+
+Local mode (`bootstrap.managed_by: "settings"`) uses one SQLite file: configure it
+in Settings, check it, and explicitly run MetaTables migrations.
+
+Hosted mode (`bootstrap.managed_by: "deployment"`) uses the database the deployment
+declares in the API's `configuration.yaml` section `runtime_database`; its connection
+URI lives in the Environment Secret that section names. Settings is read-only: it
+shows the declaration (engine, Secret name, default schema, TLS mode and certificate
+Secret names), the resolved host, port, database and login, the status and the
+migration revisions. To change the database, edit `runtime_database` or the Secret,
+then deploy. The deployment's "MetaTables system migrations" Job verifies the
+database, applies migrations and registers it before the API rolls out. Hosted Data
+Sources can be added once that runtime is active.
 
 In Local mode, **Destroy local database** removes the selected workspace's database
 and any marked files from its earlier two-file layout. The confirmation shows the
@@ -141,11 +151,13 @@ the same launcher and enable Python subprocess debugging.
 
 ## Switch to hosted storage
 
-Use **Settings → Runtime mode → Hosted → Apply runtime mode**. One Vite site and
+Use **Settings → Runtime mode → Hosted → Switch to Hosted**. One Vite site and
 API address serve both modes; there is no second hosted launch configuration.
-Configure the hosted runtime DataSource in Settings using connection settings and
-platform Secret references, then explicitly initialize it or select an already
-initialized database. There is no independent catalog URL. The supervised developer API uses the
+Hosted mode reads the same `runtime_database` declaration and Environment Secret as
+the deployed API, so both use the same database. The developer API never migrates it:
+while the local branch has a newer migration than the deployed API, it reports
+`migration_required` until that code is deployed. Each mode lists only its own
+DataSources. There is no independent catalog URL. The supervised developer API uses the
 existing SDK developer session and loopback token in either storage mode.
 
 The API rejects switching during active requests, unfinished updates, open
@@ -249,6 +261,9 @@ and foreign keys do not create dependency edges.
 static-site release with SPA routing to `/index.html`, Node 24, and `dist` output.
 Automatic deployment is enabled for every commit to the connected repository
 branch. The browser icon uses the same MetaTables mark as the application.
+The workflow's `navigation_link` places the site in Command Center, using the
+single-color mask `public/navigation-icon.svg` of that mark; the platform rejects
+gradients and text in navigation masks.
 The platform supplies the exact trusted host origin as `VITE_COMMAND_CENTER_ORIGIN`
 and sets the gateway's iframe CSP. That variable is platform-reserved; do not
 configure it in frontend environment files or the release's build environment.
@@ -259,14 +274,12 @@ the host user remounts the API runtime and clears the previous person's page sta
 A deployed direct link without host context displays an unavailable state. The
 Vite development proxy and its `METATABLES_*` variables are local server settings.
 
-The target MetaTables API release is separate from the host origin. This binding
-currently uses the public `VITE_METATABLES_RESOURCE_RELEASE_UID` value. It must
-identify an existing MetaTables FastAPI release; an undeployed API cannot receive
-delegated requests. Local Vite development requires neither embed value. Once a
-stable API release exists, its UID can be owned by the application in source, as
-the Mexico Fund Competition site does, rather than requiring a per-build setting.
+The target MetaTables API release is separate from the host origin. The workflow's
+`build_environment` binds it through the public `VITE_METATABLES_RESOURCE_RELEASE_UID`
+value, which must identify an existing MetaTables FastAPI release; an undeployed API
+cannot receive delegated requests. Local Vite development requires neither embed value.
 
-The SDK's pinned `0.5.10` skills are installed in `.agents/skills/command-center`. Use those instructions and the public SDK exports for any new navigation, layout, controls, theme, feedback, or resource view. Keep the existing MetaTables mark as the one local visual asset.
+The SDK's pinned `0.5.10` skills are installed in `.agents/skills/command-center`. Use those instructions and the public SDK exports for any new navigation, layout, controls, theme, feedback, or resource view. Keep the existing MetaTables mark and its navigation mask as the only local visual assets.
 
 ## Security model
 

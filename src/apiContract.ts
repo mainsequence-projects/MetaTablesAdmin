@@ -110,8 +110,28 @@ export function updateRecord(row: UpdateApiRecord): DataUpdateDetail {
   };
 }
 /** Preserve API error messages; translate codes only when no message is provided. */
+/** Codes the API may send as a bare string detail as well as `{ code }`. */
+const codeMessages: Record<string, string> = {
+  timescale_not_hypertable: "This table is not a TimescaleDB hypertable, so it cannot have compression or retention policies.",
+  timescale_version_unsupported: "Compression and retention policies require TimescaleDB 2.11 or later on this DataSource.",
+  timescale_extension_missing: "The TimescaleDB extension is not installed in this DataSource’s database.",
+  timescale_invalid_interval: "An interval is not valid. Use PostgreSQL interval text such as 12 hours, 7 days or 1 month.",
+  timescale_retention_not_after_compression: "Retention must be longer than compression, or chunks would be dropped before they are compressed.",
+  write_access_required: "Writer access to this table is required for this change.",
+  timescale_invalid_timezone: "The timezone is not valid. Use an IANA name such as UTC or America/New_York.",
+  timescale_invalid_policy: "TimescaleDB rejected a policy value. Check the intervals, start time and timezone.",
+  timescale_policy_failed: "TimescaleDB could not apply the policies. Nothing was changed.",
+  timescale_policies_unavailable: "Compression and retention policies are only available for time-index tables on TimescaleDB.",
+  data_source_write_blocked: "This DataSource is read-only. An admin must set its storage access to read-write before changes can be saved.",
+  data_source_runtime_access_disabled: "This DataSource is disabled for reads and writes.",
+};
+
+function codeMessage(code: string): string | null {
+  return Object.hasOwn(codeMessages, code) ? codeMessages[code] : null;
+}
+
 export function apiErrorDetail(detail: unknown): string | null {
-  if (typeof detail === "string") return detail;
+  if (typeof detail === "string") return codeMessage(detail) ?? detail;
   if (detail && typeof detail === "object" && !Array.isArray(detail) && "code" in detail) {
     if ("detail" in detail && typeof detail.detail === "string" && detail.detail.trim() && detail.detail !== detail.code) {
       return detail.detail;
@@ -142,7 +162,7 @@ export function apiErrorDetail(detail: unknown): string | null {
       sql_security_not_initialized: "Database permissions need to be initialized before running queries. An admin can do this in Security.",
       sql_permission_reconciliation_pending: "Database permissions are being updated. Try the query again shortly.",
     };
-    return typeof detail.code === "string" ? sqlMessages[detail.code] ?? detail.code : null;
+    return typeof detail.code === "string" ? sqlMessages[detail.code] ?? codeMessage(detail.code) ?? detail.code : null;
   }
   if (!Array.isArray(detail)) return null;
   const errors = detail.flatMap(item => {

@@ -59,9 +59,9 @@ export function PageHeading({ eyebrow, title, description, actions }: { eyebrow:
   return <ApplicationPageHeader eyebrow={eyebrow} title={title} description={description} actions={actions} />;
 }
 
-export function Card({ title, description, children, actions, className = "" }: { title?: string; description?: string; children: ReactNode; actions?: ReactNode; className?: string }) {
+export function Card({ title, description, children, actions, className = "", titleAs = "h2" }: { title?: string; description?: string; children: ReactNode; actions?: ReactNode; className?: string; titleAs?: "h2" | "h3" }) {
   const header = title || description || actions
-    ? <ApplicationPageHeader title={title} titleAs="h2" description={description} actions={actions} />
+    ? <ApplicationPageHeader title={title} titleAs={titleAs} description={description} actions={actions} />
     : undefined;
   return <ApplicationCard className={className} header={header}><ApplicationPageStack>{children}</ApplicationPageStack></ApplicationCard>;
 }

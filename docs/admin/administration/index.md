@@ -9,9 +9,9 @@ pageType: section
 
 ## What you can do
 
-Manage sharing and select the database used by the application runtime.
+Manage sharing and review the database used by the application runtime.
 
 ## Choose a feature
 
 - [Security](security/index.md) — review access and create namespaces.
-- [Settings](settings/index.md) — choose a runtime mode and Data Source, and review setup status.
+- [Settings](settings/index.md) — choose a runtime mode, review the runtime database, and check setup status.

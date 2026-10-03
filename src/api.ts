@@ -17,18 +17,33 @@ export type RuntimeSourceInput = {
   class_type: "sqlite" | "postgresql" | "timescale_db" | "mysql" | "mssql";
   configuration: Record<string, string | number | boolean | null>;
 };
+/** The hosted runtime database as the deployment declares it: names, never secret values. */
+export type RuntimeDatabaseDeclaration = {
+  engine: "postgresql" | "timescale_db" | "mysql" | "mssql";
+  uri_secret: string;
+  default_schema: string | null;
+  tls: {
+    mode: "disable" | "require" | "verify-ca" | "verify-full";
+    ca_secret: string | null;
+    client_certificate_secret: string | null;
+    client_key_secret: string | null;
+  };
+};
 export type RuntimeBootstrap = {
   status: "unconfigured" | "migration_required" | "registration_required" | "migrating" | "ready" | "incompatible" | "unavailable";
   active: boolean;
-  can_configure?: boolean;
-  selected_source_uid?: string | null;
+  /** Local mode is configured in Settings; the hosted runtime database is declared by the deployment. */
+  managed_by: "settings" | "deployment";
+  declaration: RuntimeDatabaseDeclaration | null;
+  can_configure: boolean;
+  selected_source_uid: string | null;
   candidate: RuntimeSourceInput | null;
   error: string | null;
   current_revisions: string[];
   required_revisions: string[];
-  pending_revisions?: string[];
-  migration_status?: "unconfigured" | "up_to_date" | "pending" | "incompatible" | "unavailable" | "migrating" | null;
-  migration_error?: string | null;
+  pending_revisions: string[];
+  migration_status: "unconfigured" | "up_to_date" | "pending" | "incompatible" | "unavailable" | "migrating" | null;
+  migration_error: string | null;
 };
 
 export type RuntimeContext = {
@@ -53,7 +68,6 @@ export type RuntimeContext = {
   git_source: Record<string, string> | null;
   data_source_selection: "local_workspace" | "catalog_default" | "runtime_override" | "runtime_binding";
   bootstrap: RuntimeBootstrap | null;
-  hosted_bootstrap?: RuntimeBootstrap | null;
   data_source_error: string | null;
   data_source: {
     uid: string; class_type: string; status: string;
@@ -231,16 +245,52 @@ export type PermissionsDocument = {
   can_edit: boolean;
 };
 
-export type PolicyConfiguration = {
-  enabled?: boolean;
-  supported?: boolean;
-  after?: string | null;
+/** TimescaleDB stores each policy as a background job; `after: null` removes it. */
+export type TimescalePolicy = {
+  after: string | null;
   schedule_interval?: string | null;
   initial_start?: string | null;
   timezone?: string | null;
-  last_modified?: string | null;
 };
-export type TablePolicies = { compression: PolicyConfiguration; retention: PolicyConfiguration };
+export type TimescalePolicyState = TimescalePolicy & { job_id: number | null };
+export type TimescaleJob = {
+  job_id: number;
+  kind: "compression" | "retention" | "other";
+  proc_name: string;
+  table_uid: string | null;
+  table_identifier: string | null;
+  hypertable_schema: string | null;
+  hypertable_name: string | null;
+  scheduled: boolean;
+  status: "Scheduled" | "Running" | "Paused" | "Failed";
+  schedule_interval: string | null;
+  last_run_status: string | null;
+  last_run_started_at: string | null;
+  last_successful_finish: string | null;
+  next_start: string | null;
+  total_runs: number | null;
+  total_failures: number | null;
+  last_error: string | null;
+};
+export type TimescaleTablePolicies = {
+  table_uid: string;
+  can_edit: boolean;
+  /** `reason`: timescale_extension_missing, timescale_version_unsupported or timescale_not_hypertable. */
+  eligibility: { eligible: boolean; reason: string | null; timescale_version: string | null };
+  compression: TimescalePolicyState;
+  retention: TimescalePolicyState;
+  compression_settings: { segmentby: string[]; orderby: string };
+  compression_stats: { total_chunks: number | null; compressed_chunks: number | null; before_bytes: number | null; after_bytes: number | null } | null;
+  jobs: TimescaleJob[];
+};
+export type TimescalePoliciesUpdate = { compression: TimescalePolicy; retention: TimescalePolicy };
+export type TimescaleJobsPage = {
+  data_source_uid: string;
+  timescale_version: string | null;
+  policy_count: number;
+  failed_count: number;
+  jobs: TimescaleJob[];
+};
 
 export class ApiError extends Error {
   constructor(
@@ -256,6 +306,16 @@ export class ApiError extends Error {
 type HostedTransport = (path: string, init: RequestInit) => Promise<Response>;
 let hostedTransport: HostedTransport | null = null;
 let runtimeInstance: string | null = null;
+// The API rejects requests stamped with a runtime instance it has replaced,
+// for example after another tab activated a DataSource.
+const RUNTIME_CHANGED = "API runtime changed; reload its context before continuing.";
+const runtimeChangeListeners = new Set<() => void>();
+
+/** Called when the API now serves a newer runtime than this page has loaded. */
+export function onRuntimeChanged(listener: () => void) {
+  runtimeChangeListeners.add(listener);
+  return () => { runtimeChangeListeners.delete(listener); };
+}
 const inFlightReads = new InFlightReads();
 let transportGeneration = 0;
 
@@ -353,6 +413,12 @@ async function sendRequest<T>(
     const detail = payload && typeof payload === "object" && "detail" in payload
       ? (payload as { detail: unknown }).detail
       : null;
+    if (response.status === 409 && detail === RUNTIME_CHANGED) {
+      // Adopt the API's current runtime instead of asking the user to reload.
+      inFlightReads.invalidate();
+      runtimeChangeListeners.forEach(listener => listener());
+      throw new ApiError("The API runtime changed; reloading its context.", response.status);
+    }
     const missingRoute = response.status === 404 && detail === "Not Found";
     const apiMessage = apiErrorDetail(detail);
     const message = missingRoute
@@ -443,7 +509,6 @@ export const metaTablesApi = {
   refreshRelation: (uid: string) => request<{ ok: boolean }>("POST", `meta-tables/${encodeURIComponent(uid)}/introspect/`, { body: {} }),
   readRelation: (uid: string, body: RelationReadRequest, signal?: AbortSignal) => request<RelationRowsResult>("POST", `meta-tables/${encodeURIComponent(uid)}/read/`, { body, signal }),
   configureRuntimeSource: (body: RuntimeSourceInput) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/configure/", { body }),
-  selectHostedSource: (uid: string, localMode: boolean) => request<RuntimeBootstrap>("POST", localMode ? "runtime-bootstrap/hosted/select/" : "runtime-bootstrap/select/", { body: { source_uid: uid } }),
   migrateRuntimeSource: () => request<RuntimeBootstrap>("POST", "runtime-bootstrap/migrate/"),
   activateRuntimeSource: () => request<RuntimeBootstrap>("POST", "runtime-bootstrap/activate/"),
   destroyLocalRuntime: (path: string, confirmation: string) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/destroy-local/", { body: { path, confirmation } }),
@@ -475,6 +540,7 @@ export const metaTablesApi = {
   updateSource: (uid: string, body: SourcePatch) => request<SourceRecord>("PATCH", `data-sources/${encodeURIComponent(uid)}/`, { body }),
   validateSource: (uid: string) => request<SourceRecord>("POST", `data-sources/${encodeURIComponent(uid)}/validate/`, { body: {} }),
   deleteSource: (uid: string) => request<null>("DELETE", `data-sources/${encodeURIComponent(uid)}/`),
+  timescaleJobs: (uid: string, signal?: AbortSignal) => request<TimescaleJobsPage>("GET", `data-sources/${encodeURIComponent(uid)}/timescale-jobs/`, { signal }),
   runSourceQuery: (uid: string, sql: string, maxRows: number, offset = 0, signal?: AbortSignal) =>
     request<SourceQueryResult>("POST", "meta-tables/run-query/", {
       body: { data_source_uid: uid, sql, limits: { max_rows: maxRows, offset, statement_timeout_ms: 15000 } }, signal,
@@ -491,8 +557,8 @@ export const metaTablesApi = {
   tableStats: (uid: string, signal?: AbortSignal) => request<Record<string, unknown>>("GET", `meta-tables/${encodeURIComponent(uid)}/stats`, { signal }),
   tableUpdates: async (uid: string, offset: number, signal?: AbortSignal, limit = 25) => mapPage(page<UpdateApiRecord>(await request("GET", "time-index-table-updates/", { query: { output_table__uid: uid, limit, offset }, signal })), updateRecord),
   tableUpdatePipeline: (uid: string, signal?: AbortSignal, options: { direction?: PipelineDirection; updateUid?: string } = {}) => request<UpdatePipeline>("GET", `meta-tables/${encodeURIComponent(uid)}/update-graph/`, { query: { direction: options.direction, update_uid: options.updateUid }, signal }),
-  tablePolicies: (uid: string, signal?: AbortSignal) => request<TablePolicies>("GET", `meta-tables/${encodeURIComponent(uid)}/policies`, { signal }),
-  saveTablePolicies: (uid: string, value: TablePolicies) => request<TablePolicies>("PATCH", `meta-tables/${encodeURIComponent(uid)}/policies`, { body: value }),
+  timescalePolicies: (uid: string, signal?: AbortSignal) => request<TimescaleTablePolicies>("GET", `meta-tables/${encodeURIComponent(uid)}/timescale-policies/`, { signal }),
+  saveTimescalePolicies: (uid: string, body: TimescalePoliciesUpdate) => request<TimescaleTablePolicies>("PUT", `meta-tables/${encodeURIComponent(uid)}/timescale-policies/`, { body }),
   securityResources: (search: string, offset: number, signal?: AbortSignal) => request<{ tables: Principal[]; namespaces: Principal[] }>("GET", "security/resources/", { query: { search, offset }, signal }),
   createSecurityNamespace: (name: string) => request<Principal>("POST", "security/namespaces/", { body: { name } }),
   databasePermissionStatus: (signal?: AbortSignal) => request<DatabasePermissionStatus>("GET", "security/database-permissions/", { signal }),

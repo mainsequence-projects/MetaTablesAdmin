@@ -109,3 +109,11 @@ body { margin: 0; background: var(--background); color: var(--foreground); font-
 .json-tree-string { color: var(--success); }
 .json-tree-literal { color: var(--warning); }
 .json-tree-muted { color: var(--muted-foreground); }
+
+/* Timescale policies and jobs: compact domain layout inside SDK cards and tables. */
+.timescale-toggle, .timescale-counts, .timescale-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; }
+.timescale-toggle { gap: 0.25rem; }
+.timescale-interval { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--application-card-header-gap); align-items: start; }
+.timescale-advanced summary { cursor: pointer; color: var(--muted-foreground); }
+.timescale-advanced[open] summary { margin-bottom: var(--application-card-header-gap); }
+.timescale-secondary { display: block; color: var(--muted-foreground); font-size: var(--font-size-body-sm); overflow-wrap: anywhere; }

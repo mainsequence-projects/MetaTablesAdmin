@@ -29,4 +29,5 @@ export const sourceDetailTabs: readonly ResourceDetailTabDefinition<SourceRecord
   { id: "details", label: "Details" },
   { id: "import", label: "Import", isVisible: source => source.can_import === true },
   { id: "query-builder", label: "Query builder" },
+  { id: "timescale-jobs", label: "Jobs", isVisible: source => source.class_type === "timescale_db" },
 ];

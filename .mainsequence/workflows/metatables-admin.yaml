@@ -2,9 +2,8 @@ api_version: "2.3.0"
 name: metatables-admin
 resources:
   - key: metatables-admin
-    kind: resource_release
+    kind: static_site
     spec:
-      release_kind: static_site
       name: MetaTables Admin
       root_directory: ""
       framework: vite
@@ -12,7 +11,20 @@ resources:
       output_directory: dist
       routing_mode: spa
       spa_entry_file: /index.html
+      # Public release identity of the MetaTables FastAPI, not a credential.
+      build_environment:
+        VITE_METATABLES_RESOURCE_RELEASE_UID: 7e559b91-3770-45f8-a9a9-7066e37fe2f0
       automatic_deployment: true
       automatic_redeployment:
         enabled: true
         tag_regex: null
+      navigation_link:
+        label: MetaTables
+        icon_key: app-window
+        icon_mask_path: public/navigation-icon.svg
+        is_enabled: true
+        audiences:
+          organization_wide: false
+          team_uids: []
+          user_uids:
+            - e2a4f38a-1b5f-40a3-974f-70bc8f065b3f

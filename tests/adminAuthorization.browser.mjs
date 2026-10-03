@@ -45,7 +45,8 @@ try {
         result = { is_admin: isAdmin, user_uid: uid, local_mode: local, local_mode_available: true,
           api_endpoint: url, runtime_instance_id: 'worker-1', runtime_switch_available: false,
           data_source: initialized ? source : null, data_source_error: initialized ? null : 'runtime_not_initialized',
-          bootstrap: { active: initialized, status: initialized ? 'ready' : 'unconfigured', candidate: null, current_revisions: [], required_revisions: [] },
+          bootstrap: { active: initialized, status: initialized ? 'ready' : 'unconfigured', managed_by: local ? 'settings' : 'deployment', declaration: null,
+            candidate: null, current_revisions: [], required_revisions: [] },
           dialect: local ? 'sqlite' : 'postgresql', paramstyle: 'named', default_schema: 'public' };
       } else if (path === '/api/security/resources/') result = { tables: [], namespaces: [] };
       else if (path === `/api/data-sources/${uid}/summary/`) result = {

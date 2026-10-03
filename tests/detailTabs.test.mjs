@@ -51,7 +51,7 @@ test("namespace, update and DataSource sections have stable defaults and deep li
       assert.equal(resolved.fallback, activeTabId !== null);
     }
     for (const tab of tabs) {
-      const resolved = resolveResourceDetailTabs(tabs, { activeTabId: tab.id, resource: { can_import: true } });
+      const resolved = resolveResourceDetailTabs(tabs, { activeTabId: tab.id, resource: { can_import: true, class_type: "timescale_db" } });
       assert.equal(resolved.activeTab.id, tab.id);
       assert.equal(resolved.fallback, false);
     }
@@ -75,4 +75,15 @@ test("DataSource import follows the API admin affordance", () => {
     assert.equal(tabs.tabs.some(tab => tab.id === "import"), false);
   }
   assert.equal(resolveResourceDetailTabs(sourceDetailTabs, { activeTabId: "import", resource: { can_import: true } }).activeTab.id, "import");
+});
+
+test("DataSource Jobs appear only for TimescaleDB sources", () => {
+  for (const class_type of ["postgresql", "sqlite", undefined]) {
+    const tabs = resolveResourceDetailTabs(sourceDetailTabs, { activeTabId: "timescale-jobs", resource: { class_type } });
+    assert.equal(tabs.activeTab.id, "details");
+    assert.equal(tabs.tabs.some(tab => tab.id === "timescale-jobs"), false);
+  }
+  const loading = resolveResourceDetailTabs(sourceDetailTabs, { activeTabId: "timescale-jobs", resource: null });
+  assert.equal(loading.activeTab.id, "timescale-jobs", "the deep link survives loading");
+  assert.equal(resolveResourceDetailTabs(sourceDetailTabs, { activeTabId: "timescale-jobs", resource: { class_type: "timescale_db" } }).activeTab.id, "timescale-jobs");
 });

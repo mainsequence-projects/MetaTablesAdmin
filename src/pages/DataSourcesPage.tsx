@@ -17,11 +17,17 @@ import { DetailSection, Facts, StatePanel, Picker, display, useRemote } from "..
 import { RelationImport } from "./RelationImport";
 import { SourceRelationBrowser } from "./RelationRows";
 import { SourceQueryBuilder } from "./SourceQueryBuilder";
+import { TimescaleJobsPanel } from "./TimescaleJobsPanel";
 
 export function DataSourcesPage({ uid }: { uid: string | null }) {
   const { runtime } = useRuntimeContext();
   const navigate = useNavigate();
+  // Hosted registrations live in the runtime catalog, which exists once the deployment has activated it.
+  const awaitingDeployment = runtime.bootstrap?.managed_by === "deployment" && !runtime.bootstrap.active;
   if (uid === "new" && runtime.is_admin !== true) return <StatePanel title="Admin access required">DataSource settings are managed by application admins.</StatePanel>;
+  if (uid === "new" && awaitingDeployment) return <StatePanel title="Runtime database not active">
+    DataSources can be added once a deployment has activated the runtime database.
+  </StatePanel>;
   if (uid === "new") return <ApplicationPageStack>
     <ApplicationPageHeader eyebrow="Data Sources" title="Register DataSource"
       actions={<Button onClick={() => navigate("/data-sources")}><ArrowLeft size={16} aria-hidden="true" />Back to list</Button>} />
@@ -35,7 +41,7 @@ export function DataSourcesPage({ uid }: { uid: string | null }) {
     emptyContent={runtime.local_mode && runtime.bootstrap?.candidate && runtime.bootstrap.active === false
       ? <StatePanel embedded title="No additional DataSources registered">Add a DataSource to connect another database.</StatePanel>
       : undefined}
-    primaryActions={runtime.is_admin !== true ? []
+    primaryActions={runtime.is_admin !== true || awaitingDeployment ? []
       : [{ id: "register", label: "Add DataSource", onSelect: () => navigate("/data-sources/new") }]}
     onRowActivate={source => navigate(detailPath("data-sources", source.uid))} />
   </ApplicationPageStack>;
@@ -91,14 +97,14 @@ function SourceDetailPage({ uid }: { uid: string }) {
     {detail && activeTab?.id === "import" && <RelationImport key={uid} source={detail.source} />}
     {detail && activeTab?.id === "query-builder" && (runtime.data_source?.uid === uid
       ? <SourceQueryBuilder key={uid} source={detail.source} /> : <SourceRelationBrowser key={uid} source={detail.source} />)}
+    {detail && activeTab?.id === "timescale-jobs" && <TimescaleJobsPanel key={uid} source={detail.source} />}
   </ResourceDetailShell>;
 }
 
 function SourceDetail({ source, summary, refresh, setError }: { source: SourceRecord; summary: SourceSummary; refresh: () => void; setError: (message: string) => void }) {
   const { runtime } = useRuntimeContext();
   const canManage = runtime.is_admin === true && source.can_manage === true;
-  const selectedForHosted = source.class_type !== "sqlite" &&
-    (runtime.hosted_bootstrap?.selected_source_uid === source.uid || runtime.bootstrap?.selected_source_uid === source.uid);
+  const deploymentRuntime = runtime.bootstrap?.managed_by === "deployment" && runtime.bootstrap.selected_source_uid === source.uid;
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -115,8 +121,8 @@ function SourceDetail({ source, summary, refresh, setError }: { source: SourceRe
   return <>
     {canManage && source.configuration
       ? <SourceEditor embedded key={JSON.stringify(source.configuration)} source={source} onSaved={refresh} actions={management} />
-      : <DetailSection title="Data Source details" description={selectedForHosted
-        ? "To edit or remove this DataSource, first choose another in Settings."
+      : <DetailSection title="Data Source details" description={deploymentRuntime
+        ? "The deployment manages this runtime database. Settings shows its declaration."
         : undefined}>
         <Facts items={[
           { label: "Name", value: source.display_name },

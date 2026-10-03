@@ -10,7 +10,7 @@ const code = ts.transpileModule(source, { compilerOptions: {
 } }).outputText.replaceAll('"./apiContract"', JSON.stringify(new URL("../src/apiContract.ts", import.meta.url).href))
   .replaceAll('"./inFlightReads"', JSON.stringify(new URL("../src/inFlightReads.ts", import.meta.url).href))
   .replaceAll('"@dev-mainsequence/command-center-sdk/embed"', JSON.stringify(import.meta.resolve("@dev-mainsequence/command-center-sdk/embed")));
-const { metaTablesApi: api, setHostedMetaTablesTransport: setTransport } = await import(
+const { metaTablesApi: api, setHostedMetaTablesTransport: setTransport, onRuntimeChanged } = await import(
   `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
 globalThis.window = { location: { origin: "http://localhost:19473" } };
 
@@ -115,6 +115,38 @@ test("the Description tab requests the mounted table document endpoint", async (
   const document = { content: "# Overview\nDescription: Recorded daily closes" };
   calls[0].respond(document);
   assert.deepEqual(await pending, document);
+});
+
+test("Timescale policies and jobs use the ADR 0015 routes", async () => {
+  const calls = transport();
+  const policies = api.timescalePolicies("daily close");
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/meta-tables/daily%20close/timescale-policies/");
+  assert.equal(calls[0].init.method, "GET");
+  calls[0].respond({ table_uid: "daily close" });
+  assert.deepEqual(await policies, { table_uid: "daily close" });
+
+  const body = { compression: { after: "7 days", schedule_interval: null, initial_start: null, timezone: null },
+    retention: { after: null, schedule_interval: null, initial_start: null, timezone: null } };
+  const saved = api.saveTimescalePolicies("daily close", body);
+  await Promise.resolve();
+  assert.equal(calls[1].path, "/meta-tables/daily%20close/timescale-policies/");
+  assert.equal(calls[1].init.method, "PUT");
+  assert.deepEqual(JSON.parse(calls[1].init.body), body);
+  calls[1].respond({ table_uid: "daily close", can_edit: true });
+  assert.deepEqual(await saved, { table_uid: "daily close", can_edit: true });
+
+  const jobs = api.timescaleJobs("timescale-source");
+  await Promise.resolve();
+  assert.equal(calls[2].path, "/data-sources/timescale-source/timescale-jobs/");
+  calls[2].respond({ data_source_uid: "timescale-source", jobs: [] });
+  assert.deepEqual(await jobs, { data_source_uid: "timescale-source", jobs: [] });
+});
+
+test("a rejected policy save explains the Timescale code", async () => {
+  setTransport(async () => Response.json({ detail: "timescale_retention_not_after_compression" }, { status: 422 }));
+  await assert.rejects(api.saveTimescalePolicies("daily-close", { compression: { after: "30 days" }, retention: { after: "7 days" } }),
+    error => error.status === 422 && /longer than compression/.test(error.message));
 });
 
 test("the Admin shares concurrent runtime-context reads and re-fetches after completion", async () => {
@@ -429,4 +461,38 @@ test("relation browsing submits structured inputs without arbitrary SQL", async 
   assert.deepEqual(JSON.parse(calls[0].init.body), selection);
   calls[0].respond({ rows: [{ "Order Total": 12 }], columns: ["Order Total"], has_more: false });
   assert.deepEqual((await pending).rows, [{ "Order Total": 12 }]);
+});
+
+test("only Local configures its runtime database from the Admin; the deployment declares the hosted one", async () => {
+  assert.equal("selectHostedSource" in api, false, "hosted DataSource selection has no request");
+  const calls = transport();
+  const configuration = { path: "/tmp/workspace.sqlite" };
+  const configured = api.configureRuntimeSource({ display_name: "Local MetaTables", class_type: "sqlite", configuration });
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/runtime-bootstrap/configure/");
+  assert.deepEqual(JSON.parse(calls[0].init.body).configuration, configuration);
+  calls[0].respond({ status: "migration_required", managed_by: "settings" });
+  assert.equal((await configured).managed_by, "settings");
+
+  const message = "The deployment manages the hosted runtime database. Edit runtime_database or its Environment Secret, then deploy.";
+  setTransport(async () => Response.json({ detail: message }, { status: 409 }));
+  await assert.rejects(api.migrateRuntimeSource(), error => error.status === 409 && error.message === message);
+});
+
+test("a replaced runtime instance reloads the runtime context instead of asking the user", async () => {
+  const calls = [];
+  setTransport((path, init) => new Promise(resolve => calls.push({ path, init, resolve })));
+  const context = api.runtimeContext();
+  await Promise.resolve();
+  calls[0].resolve(Response.json({ runtime_instance_id: "before" }));
+  await context;
+  let notified = 0;
+  const stop = onRuntimeChanged(() => { notified += 1; });
+  const read = api.sources("", 0);
+  await Promise.resolve();
+  assert.equal(calls[1].init.headers["X-MetaTables-Runtime-Instance"], "before");
+  calls[1].resolve(Response.json({ detail: "API runtime changed; reload its context before continuing." }, { status: 409 }));
+  await assert.rejects(read, /reloading its context/);
+  assert.equal(notified, 1);
+  stop();
 });

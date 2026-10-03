@@ -20,6 +20,17 @@ test("query errors retain database diagnostics and translate only message-less c
   assert.equal(apiErrorDetail({ code: "compiled_sql_database_error", detail: "compiled_sql_database_error" }), "compiled_sql_database_error");
 });
 
+test("Timescale and access codes read as messages in either detail shape", () => {
+  assert.match(apiErrorDetail("timescale_not_hypertable"), /not a TimescaleDB hypertable/);
+  assert.match(apiErrorDetail({ code: "timescale_version_unsupported" }), /2\.11 or later/);
+  assert.match(apiErrorDetail({ code: "timescale_retention_not_after_compression", detail: "timescale_retention_not_after_compression" }), /longer than compression/);
+  assert.match(apiErrorDetail("write_access_required"), /Writer access/);
+  assert.match(apiErrorDetail({ code: "data_source_write_blocked" }), /read-only/);
+  assert.equal(apiErrorDetail({ code: "timescale_invalid_interval", detail: 'invalid input syntax for type interval: "soon"' }),
+    'invalid input syntax for type interval: "soon"');
+  assert.equal(apiErrorDetail("constructor"), "constructor");
+});
+
 test("table filters and sorting use the Python API contract", () => {
   assert.deepEqual(tableQuery({ search: "prices", kind: "row", ordering: "-created_at", limit: 25 }), {
     q: "prices", time_indexed: false, management_mode: "platform_managed", ordering: "-creation_date", limit: 25,

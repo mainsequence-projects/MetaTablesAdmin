@@ -1,7 +1,7 @@
 import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ApplicationStatusScreen } from "@dev-mainsequence/command-center-sdk/feedback";
 import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
-import { metaTablesApi, type RuntimeContext } from "./api";
+import { metaTablesApi, onRuntimeChanged, type RuntimeContext } from "./api";
 import { DataSourceTypeIcon, sourceEngineLabel } from "./DataSourceTypeIcon";
 import { runtimeDataSourceProblem } from "./runtimeDataSourceProblem";
 import type { RemoteState } from "./ui";
@@ -26,6 +26,8 @@ export function RuntimeContextProvider({ children }: { children: ReactNode }) {
     );
     return () => { controller.abort(); active.current?.abort(); };
   }, [attempt]);
+  // Re-read the runtime when the API reports a newer one; views remount with it.
+  useEffect(() => onRuntimeChanged(() => setAttempt(value => value + 1)), []);
   async function refresh() {
     const signal = active.current?.signal;
     const data = await metaTablesApi.runtimeContext(signal);
