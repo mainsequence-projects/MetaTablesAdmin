@@ -1,9 +1,8 @@
 api_version: "2.3.0"
-name: metatables-admin
-# Production deploys from main; development deploys from
-# metatables-admin-development.yaml.
+name: metatables-admin-development
+# The development Environment's exact name.
 scope:
-  environments: [production]
+  environments: [development]
 resources:
   - key: metatables-admin
     kind: static_site
@@ -15,9 +14,9 @@ resources:
       output_directory: dist
       routing_mode: spa
       spa_entry_file: /index.html
-      # Public release identity of the production MetaTables FastAPI, not a credential.
+      # Public release identity of the development MetaTables FastAPI, not a credential.
       build_environment:
-        VITE_METATABLES_RESOURCE_RELEASE_UID: 415ecd03-393c-4497-96c1-c4ca05ffaac0
+        VITE_METATABLES_RESOURCE_RELEASE_UID: 7e559b91-3770-45f8-a9a9-7066e37fe2f0
       automatic_deployment: true
       automatic_redeployment:
         enabled: true

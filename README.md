@@ -257,8 +257,12 @@ and foreign keys do not create dependency edges.
 
 ## Embedded deployment
 
-`.mainsequence/workflows/metatables-admin.yaml` defines this application as a Vite
-static-site release with SPA routing to `/index.html`, Node 24, and `dist` output.
+Two workflow files define this application as a Vite static-site release with SPA
+routing to `/index.html`, Node 24, and `dist` output, one per Environment through
+`scope.environments`: `.mainsequence/workflows/metatables-admin.yaml` applies to
+production (`main`) and `.mainsequence/workflows/metatables-admin-development.yaml`
+to `development` (the `development` branch).
+Keep their specs identical except for the MetaTables API release they bind.
 Automatic deployment is enabled for every commit to the connected repository
 branch. The browser icon uses the same MetaTables mark as the application.
 The workflow's `navigation_link` places the site in Command Center, using the
@@ -274,9 +278,11 @@ the host user remounts the API runtime and clears the previous person's page sta
 A deployed direct link without host context displays an unavailable state. The
 Vite development proxy and its `METATABLES_*` variables are local server settings.
 
-The target MetaTables API release is separate from the host origin. The workflow's
+The target MetaTables API release is separate from the host origin. Each workflow's
 `build_environment` binds it through the public `VITE_METATABLES_RESOURCE_RELEASE_UID`
-value, which must identify an existing MetaTables FastAPI release; an undeployed API
+value, which must identify an existing MetaTables FastAPI release in the same
+Environment: the development file names the API released from MetaTables
+`development`, the production file the one released from `main`. An undeployed API
 cannot receive delegated requests. Local Vite development requires neither embed value.
 
 The SDK's pinned `0.5.10` skills are installed in `.agents/skills/command-center`. Use those instructions and the public SDK exports for any new navigation, layout, controls, theme, feedback, or resource view. Keep the existing MetaTables mark and its navigation mask as the only local visual assets.
