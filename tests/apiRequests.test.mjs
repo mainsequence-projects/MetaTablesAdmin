@@ -10,7 +10,7 @@ const code = ts.transpileModule(source, { compilerOptions: {
 } }).outputText.replaceAll('"./apiContract"', JSON.stringify(new URL("../src/apiContract.ts", import.meta.url).href))
   .replaceAll('"./inFlightReads"', JSON.stringify(new URL("../src/inFlightReads.ts", import.meta.url).href))
   .replaceAll('"@dev-mainsequence/command-center-sdk/embed"', JSON.stringify(import.meta.resolve("@dev-mainsequence/command-center-sdk/embed")));
-const { metaTablesApi: api, setHostedMetaTablesTransport: setTransport } = await import(
+const { metaTablesApi: api, setHostedMetaTablesTransport: setTransport, onRuntimeChanged } = await import(
   `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
 globalThis.window = { location: { origin: "http://localhost:19473" } };
 
@@ -429,4 +429,22 @@ test("relation browsing submits structured inputs without arbitrary SQL", async 
   assert.deepEqual(JSON.parse(calls[0].init.body), selection);
   calls[0].respond({ rows: [{ "Order Total": 12 }], columns: ["Order Total"], has_more: false });
   assert.deepEqual((await pending).rows, [{ "Order Total": 12 }]);
+});
+
+test("a replaced runtime instance reloads the runtime context instead of asking the user", async () => {
+  const calls = [];
+  setTransport((path, init) => new Promise(resolve => calls.push({ path, init, resolve })));
+  const context = api.runtimeContext();
+  await Promise.resolve();
+  calls[0].resolve(Response.json({ runtime_instance_id: "before" }));
+  await context;
+  let notified = 0;
+  const stop = onRuntimeChanged(() => { notified += 1; });
+  const read = api.sources("", 0);
+  await Promise.resolve();
+  assert.equal(calls[1].init.headers["X-MetaTables-Runtime-Instance"], "before");
+  calls[1].resolve(Response.json({ detail: "API runtime changed; reload its context before continuing." }, { status: 409 }));
+  await assert.rejects(read, /reloading its context/);
+  assert.equal(notified, 1);
+  stop();
 });

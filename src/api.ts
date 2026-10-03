@@ -255,6 +255,16 @@ export class ApiError extends Error {
 type HostedTransport = (path: string, init: RequestInit) => Promise<Response>;
 let hostedTransport: HostedTransport | null = null;
 let runtimeInstance: string | null = null;
+// The API rejects requests stamped with a runtime instance it has replaced,
+// for example after another tab activated a DataSource.
+const RUNTIME_CHANGED = "API runtime changed; reload its context before continuing.";
+const runtimeChangeListeners = new Set<() => void>();
+
+/** Called when the API now serves a newer runtime than this page has loaded. */
+export function onRuntimeChanged(listener: () => void) {
+  runtimeChangeListeners.add(listener);
+  return () => { runtimeChangeListeners.delete(listener); };
+}
 const inFlightReads = new InFlightReads();
 let transportGeneration = 0;
 
@@ -352,6 +362,12 @@ async function sendRequest<T>(
     const detail = payload && typeof payload === "object" && "detail" in payload
       ? (payload as { detail: unknown }).detail
       : null;
+    if (response.status === 409 && detail === RUNTIME_CHANGED) {
+      // Adopt the API's current runtime instead of asking the user to reload.
+      inFlightReads.invalidate();
+      runtimeChangeListeners.forEach(listener => listener());
+      throw new ApiError("The API runtime changed; reloading its context.", response.status);
+    }
     const missingRoute = response.status === 404 && detail === "Not Found";
     const apiMessage = apiErrorDetail(detail);
     const message = missingRoute
