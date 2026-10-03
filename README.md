@@ -260,8 +260,8 @@ and foreign keys do not create dependency edges.
 Two workflow files define this application as a Vite static-site release with SPA
 routing to `/index.html`, Node 24, and `dist` output, one per Environment through
 `scope.environments`: `.mainsequence/workflows/metatables-admin.yaml` applies to
-`development` (the `development` branch) and
-`.mainsequence/workflows/metatables-admin-production.yaml` to production (`main`).
+production (`main`) and `.mainsequence/workflows/metatables-admin-development.yaml`
+to `development` (the `development` branch).
 Keep their specs identical except for the MetaTables API release they bind.
 Automatic deployment is enabled for every commit to the connected repository
 branch. The browser icon uses the same MetaTables mark as the application.
