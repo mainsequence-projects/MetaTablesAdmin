@@ -1,6 +1,6 @@
 ---
 title: Add a Data Source
-description: The new Data Source is registered and available in the list. The current runtime Data Source stays selected until you change it in Settings.
+description: The new Data Source is registered and available in the list. Adding it does not change the runtime database.
 audience: end-user
 pageType: task
 ---
@@ -9,7 +9,7 @@ pageType: task
 
 ## Before you start
 
-You need admin access, database credentials, and the host, port, database name, and schema supplied by your database administrator.
+You need admin access, database credentials, and the host, port, database name, and schema supplied by your database administrator. In Hosted mode, Data Sources can be added once the runtime database is active.
 
 ## Steps
 
@@ -17,13 +17,13 @@ You need admin access, database credentials, and the host, port, database name, 
 2. Enter a recognizable **Name** and choose the **Engine**.
 3. Fill in **Host**, **Database name**, **Database user**, **Default schema**, and **Port**. For MySQL, the schema follows the database name.
 4. Enter **Password** directly. Use **Show password** or **Hide password** if needed. When editing a source later, leave Password blank to keep its existing value.
-5. Choose the encryption or TLS settings required by your database and set **Storage access**. Use read write for a source you intend to select for the runtime.
+5. Choose the encryption or TLS settings required by your database and set **Storage access**.
 6. Choose **Test connection** and read the result. Correct the settings if the test fails.
 7. Choose **Create DataSource** below the form to save it.
 
 ## Expected result
 
-The new Data Source is registered and available in the list. The current runtime Data Source stays selected until you change it in Settings.
+The new Data Source is registered and available in the list. Adding it does not change the runtime database.
 
 ## If something goes wrong
 

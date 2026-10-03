@@ -4,6 +4,18 @@ import type { RuntimeContext } from "./api";
 export function runtimeDataSourceProblem(runtime: RuntimeContext): { title: string; message: string } | null {
   if (runtime.data_source && !runtime.data_source_error) return null;
   const bootstrap = runtime.bootstrap;
+  if (bootstrap && !bootstrap.active && bootstrap.managed_by === "deployment") {
+    // The deployment migrates and registers the hosted runtime database; Settings only reports it.
+    const deploy = "A deployment applies MetaTables migrations and registers the database. Review its status in Settings.";
+    const titles = { unconfigured: "No runtime database", migration_required: "DataSource requires migrations",
+      registration_required: "DataSource setup incomplete", ready: "DataSource activation required",
+      migrating: "DataSource initialization in progress", incompatible: "DataSource unavailable", unavailable: "DataSource unavailable" };
+    const fallback = bootstrap.status === "migrating"
+      ? "MetaTables migrations are running for the runtime database. Refresh the runtime in Settings when they finish."
+      : bootstrap.status === "incompatible" || bootstrap.status === "unavailable"
+        ? "The API could not verify the runtime database. Review its status in Settings." : deploy;
+    return { title: titles[bootstrap.status], message: bootstrap.error ?? fallback };
+  }
   if (bootstrap && !bootstrap.active) {
     switch (bootstrap.status) {
       case "migration_required":

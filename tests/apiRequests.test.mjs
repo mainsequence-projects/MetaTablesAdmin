@@ -463,6 +463,22 @@ test("relation browsing submits structured inputs without arbitrary SQL", async 
   assert.deepEqual((await pending).rows, [{ "Order Total": 12 }]);
 });
 
+test("only Local configures its runtime database from the Admin; the deployment declares the hosted one", async () => {
+  assert.equal("selectHostedSource" in api, false, "hosted DataSource selection has no request");
+  const calls = transport();
+  const configuration = { path: "/tmp/workspace.sqlite" };
+  const configured = api.configureRuntimeSource({ display_name: "Local MetaTables", class_type: "sqlite", configuration });
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/runtime-bootstrap/configure/");
+  assert.deepEqual(JSON.parse(calls[0].init.body).configuration, configuration);
+  calls[0].respond({ status: "migration_required", managed_by: "settings" });
+  assert.equal((await configured).managed_by, "settings");
+
+  const message = "The deployment manages the hosted runtime database. Edit runtime_database or its Environment Secret, then deploy.";
+  setTransport(async () => Response.json({ detail: message }, { status: 409 }));
+  await assert.rejects(api.migrateRuntimeSource(), error => error.status === 409 && error.message === message);
+});
+
 test("a replaced runtime instance reloads the runtime context instead of asking the user", async () => {
   const calls = [];
   setTransport((path, init) => new Promise(resolve => calls.push({ path, init, resolve })));

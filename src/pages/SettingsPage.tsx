@@ -3,7 +3,7 @@ import { Database } from "lucide-react";
 import { Button, Field } from "@dev-mainsequence/command-center-sdk/controls";
 import { ApplicationCardGrid, ApplicationPageHeader, ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import { RuntimeDataSourceSetup } from "../runtimeDataSourceSetup";
-import { RuntimeHostedSourceSelection } from "../RuntimeHostedSourceSelection";
+import { RuntimeDeploymentDatabase } from "../runtimeDeploymentDatabase";
 import { DataSourceTypeIcon, sourceEnginePickerIcon } from "../DataSourceTypeIcon";
 import { useRuntimeContext } from "../runtimeContext";
 import { Badge, Card, PageHeading, Picker, StatePanel } from "../ui";
@@ -14,7 +14,7 @@ export function SettingsPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const environment = runtime.local_mode ? runtime.hosted_environment_target : runtime.hosted_environment;
-  const hostedEngine = !runtime.local_mode ? runtime.bootstrap?.candidate?.class_type ?? runtime.data_source?.class_type : null;
+  const hostedEngine = !runtime.local_mode ? runtime.bootstrap?.declaration?.engine ?? runtime.bootstrap?.candidate?.class_type ?? runtime.data_source?.class_type : null;
   const activeMode = runtime.local_mode ? "local" : "hosted";
   const modeChanged = mode !== activeMode;
   const canSwitch = runtime.local_mode_available && runtime.runtime_switch_available;
@@ -26,14 +26,14 @@ export function SettingsPage() {
   return <ApplicationPageStack>
     <PageHeading eyebrow="Application" title="Settings" description="Configure how MetaTables runs and where it stores data."
       actions={<Button pending={busy} disabled={busy} onClick={() => void check()}>Refresh runtime</Button>} />
-    <Card title="Runtime" description="Choose the API runtime mode, then set up the DataSource it will use.">
+    <Card title="Runtime" description="Choose the API runtime mode, then review the database it uses.">
       {error && <p role="alert"><Badge tone="danger">Runtime check failed</Badge> {error}</p>}
       <ApplicationPageStack as="section" aria-label="API runtime mode">
         <ApplicationPageHeader title="1. API runtime mode" titleAs="h3"
-          description="Local uses the workspace database. Hosted connects to a registered DataSource."
+          description="Local uses the workspace database. Hosted uses the database the deployment declares."
           actions={<Badge tone="success">{runtime.local_mode ? "Local" : "Hosted"} active</Badge>} />
         <ApplicationCardGrid>
-          {canSwitch && <Field label="Runtime mode" description={modeChanged ? "Selecting a mode prepares its settings. Switching later restarts the API." : "Already active. Continue with the DataSource below."} error={switchError || undefined}>
+          {canSwitch && <Field label="Runtime mode" description={modeChanged ? "Selecting a mode prepares its settings. Switching later restarts the API." : "Already active. Its database is shown below."} error={switchError || undefined}>
           <Picker fullWidth ariaLabel="Runtime mode" value={mode} disabled={busy}
             options={[{ value: "local", label: "Local — workspace SQLite", icon: sourceEnginePickerIcon("sqlite") },
               { value: "hosted", label: `Hosted — ${environment?.name ?? environment?.uid ?? "configured databases"}`, icon: hostedEngine ? sourceEnginePickerIcon(hostedEngine) : Database }]}
@@ -61,10 +61,10 @@ export function SettingsPage() {
       </ApplicationPageStack>
       {modeChanged
         ? <ApplicationPageHeader title="2. DataSource" titleAs="h3" description={mode === "hosted"
-          ? "Each mode has its own DataSources. Switch to Hosted, then register its database in Data Sources and select it here."
+          ? "Hosted uses the database the deployment declares. Switch to Hosted to review it here."
           : "Switch to Local to manage its workspace database."} />
-        : mode === "hosted" ? <RuntimeHostedSourceSelection disabled={busy} />
-        : <RuntimeDataSourceSetup key={mode} mode="local" disabled={busy} />}
+        : runtime.local_mode && runtime.bootstrap?.managed_by !== "deployment" ? <RuntimeDataSourceSetup disabled={busy} />
+        : <RuntimeDeploymentDatabase />}
       {modeChanged && canSwitch && <div>
         <Button variant="primary" pending={busy} disabled={busy}
         onClick={() => { setBusy(true); void switchMode(mode).finally(() => setBusy(false)); }}>

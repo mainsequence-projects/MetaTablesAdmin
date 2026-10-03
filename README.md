@@ -39,20 +39,30 @@ Expired logs do not erase catalog outcomes. Earlier records without snapshots
 show historical graph unavailable, and current permissions filter every read.
 
 The API requires migration `0004_historical_run_graphs`, applied explicitly in
-Settings after restart. Scheduling remains with Main Sequence Jobs.
+Settings after restart in Local mode and by the deployment in Hosted mode.
+Scheduling remains with Main Sequence Jobs.
 
 ## Runtime and Settings
 
 The application initializes through the MetaTables API's `/runtime-context/`.
 **Settings** shows the API mode and endpoint, the verified hosted Environment,
-and its DataSource setting. Settings and Admin Data Sources remain available before
-initialization. Data Sources shows the selected runtime connection and its migration
-status, and allows hosted connections to be registered. Tables and updates wait
-for initialization. A configured SQLite file with pending migrations
-is shown as requiring migrations, rather than as an absent DataSource. Configure the runtime
-DataSource, check it, and explicitly run MetaTables migrations or select an already
-initialized database. Local uses one SQLite file; hosted uses PostgreSQL/TimescaleDB.
+and the runtime database. Settings and Data Sources remain available before
+initialization; tables and updates wait for it. A configured database with pending
+migrations is shown as requiring migrations, rather than as an absent DataSource.
 That database contains both system records and user tables. Startup never migrates it.
+
+Local mode (`bootstrap.managed_by: "settings"`) uses one SQLite file: configure it
+in Settings, check it, and explicitly run MetaTables migrations.
+
+Hosted mode (`bootstrap.managed_by: "deployment"`) uses the database the deployment
+declares in the API's `configuration.yaml` section `runtime_database`; its connection
+URI lives in the Environment Secret that section names. Settings is read-only: it
+shows the declaration (engine, Secret name, default schema, TLS mode and certificate
+Secret names), the resolved host, port, database and login, the status and the
+migration revisions. To change the database, edit `runtime_database` or the Secret,
+then deploy. The deployment's "MetaTables system migrations" Job verifies the
+database, applies migrations and registers it before the API rolls out. Hosted Data
+Sources can be added once that runtime is active.
 
 In Local mode, **Destroy local database** removes the selected workspace's database
 and any marked files from its earlier two-file layout. The confirmation shows the
@@ -143,9 +153,11 @@ the same launcher and enable Python subprocess debugging.
 
 Use **Settings → Runtime mode → Hosted → Switch to Hosted**. One Vite site and
 API address serve both modes; there is no second hosted launch configuration.
-Each mode lists only its own DataSources: after switching, register the hosted
-database in Data Sources (its password becomes a platform Secret), select it in
-Settings, then explicitly initialize it or use an already initialized database. There is no independent catalog URL. The supervised developer API uses the
+Hosted mode reads the same `runtime_database` declaration and Environment Secret as
+the deployed API, so both use the same database. The developer API never migrates it:
+while the local branch has a newer migration than the deployed API, it reports
+`migration_required` until that code is deployed. Each mode lists only its own
+DataSources. There is no independent catalog URL. The supervised developer API uses the
 existing SDK developer session and loopback token in either storage mode.
 
 The API rejects switching during active requests, unfinished updates, open

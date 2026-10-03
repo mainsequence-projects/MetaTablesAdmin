@@ -137,8 +137,8 @@ const sidebars = {
               "items": [
                 {
                   "type": "doc",
-                  "id": "admin/administration/settings/select-data-source",
-                  "label": "Select a runtime Data Source"
+                  "id": "admin/administration/settings/runtime-database",
+                  "label": "Set up the runtime database"
                 }
               ]
             }

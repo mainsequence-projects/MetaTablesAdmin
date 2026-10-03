@@ -44,9 +44,24 @@ hooks.deregister();
 
 const local = {
   is_admin: true, local_mode: true, data_source: null, data_source_error: "runtime_not_initialized",
-  bootstrap: { active: false, status: "migration_required", error: null, migration_status: "pending",
-    current_revisions: [], required_revisions: ["initial"],
+  bootstrap: { active: false, status: "migration_required", managed_by: "settings", declaration: null, can_configure: true,
+    error: null, migration_status: "pending", current_revisions: [], required_revisions: ["initial"],
     candidate: { display_name: "Local workspace", class_type: "sqlite", configuration: { path: "/tmp/workspace.sqlite" } } },
+};
+
+// Hosted: the deployment declares the database and its migration Job applies pending migrations.
+const hosted = {
+  is_admin: true, local_mode: false, data_source: null, data_source_error: "runtime_not_initialized",
+  api_endpoint: "https://metatables.example.test",
+  hosted_environment: { uid: "environment", status: "verified", name: "Development", is_production: false, required_repository_branch: "development" },
+  bootstrap: { active: false, status: "migration_required", managed_by: "deployment", can_configure: false, selected_source_uid: null,
+    error: "The runtime database has pending MetaTables migrations. The next deployment applies them.",
+    declaration: { engine: "timescale_db", uri_secret: "METATABLES_RUNTIME_DATABASE", default_schema: "public",
+      tls: { mode: "verify-full", ca_secret: "METATABLES_RUNTIME_CA", client_certificate_secret: null, client_key_secret: null } },
+    candidate: { display_name: "MetaTables", class_type: "timescale_db", configuration: {
+      host: "runtime-db.example.test", port: 20989, database_name: "metatables_development", database_user: "metatables_dev", default_schema: "public" } },
+    current_revisions: ["0008_previous"], required_revisions: ["0009_timescale"], pending_revisions: ["0009_timescale"],
+    migration_status: "pending", migration_error: null },
 };
 
 function render(runtime, path = "/data-sources") {
@@ -80,13 +95,44 @@ test("an active local catalog renders its source registry", () => {
   assert.doesNotMatch(html, /DataSource requires migrations|No DataSource configured/);
 });
 
-test("an empty hosted runtime still permits registering its first connection", () => {
-  const runtime = { ...local, local_mode: false, bootstrap: { ...local.bootstrap, status: "unconfigured", candidate: null } };
-  const html = render(runtime);
-  assert.match(html, /No DataSource configured/);
-  assert.match(html, /Add DataSource/);
+test("hosted DataSources wait for the deployment to activate the runtime database", () => {
+  const html = render(hosted);
+  assert.match(html, /DataSource requires migrations/);
+  assert.match(html, /The next deployment applies them\./, "the API's error is shown verbatim");
   assert.match(html, /Search data source name/);
-  assert.match(render(runtime, "/data-sources/new?scope=runtime"), /Register DataSource/);
+  assert.doesNotMatch(html, /Add DataSource|No DataSource configured/);
+  const form = render(hosted, "/data-sources/new");
+  assert.match(form, /Runtime database not active/);
+  assert.doesNotMatch(form, /Register DataSource/);
+});
+
+test("an active hosted runtime registers additional DataSources", () => {
+  const html = render({ ...hosted, data_source_error: null,
+    data_source: { uid: "runtime", class_type: "timescale_db", display_name: "MetaTables", status: "AVAILABLE", storage_access_mode: "read_write" },
+    bootstrap: { ...hosted.bootstrap, active: true, status: "ready", error: null, selected_source_uid: "runtime",
+      current_revisions: ["0009_timescale"], pending_revisions: [], migration_status: "up_to_date" } });
+  assert.match(html, /Add DataSource/);
+  assert.doesNotMatch(html, /DataSource requires migrations/);
+});
+
+test("hosted Settings shows the deployment-declared runtime database read-only", () => {
+  const html = render(hosted, "/admin/settings");
+  for (const expected of [/2\. Runtime database/, /TigerData \/ TimescaleDB/, /METATABLES_RUNTIME_DATABASE/, /verify-full/,
+    /METATABLES_RUNTIME_CA/, /runtime-db\.example\.test/, /20989/, /metatables_development/, /metatables_dev/,
+    /The next deployment applies them\./, /A deployment applies the pending migrations/, /runtime_database/, /configuration\.yaml/,
+    /MetaTables system migrations Job/, /0008_previous/, /0009_timescale/, /Migrations pending/]) {
+    assert.match(html, expected);
+  }
+  assert.doesNotMatch(html, /Client key Secret/, "unset certificate Secrets are omitted");
+  assert.doesNotMatch(html, /Select DataSource|Hosted DataSource|Use this DataSource|Finish DataSource setup|Run MetaTables migrations|Check DataSource|Edit configuration|Destroy local database/);
+});
+
+test("local Settings keeps configuring and migrating the workspace database", () => {
+  const html = render(local, "/admin/settings");
+  assert.match(html, /\/tmp\/workspace\.sqlite/);
+  assert.match(html, /Edit configuration/);
+  assert.match(html, /Run MetaTables migrations/);
+  assert.doesNotMatch(html, /Runtime database|runtime_database|Environment Secret/);
 });
 
 test("configured but incompatible storage is reported as unavailable", () => {

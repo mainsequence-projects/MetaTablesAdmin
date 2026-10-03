@@ -20,13 +20,13 @@ Use MetaTables to find tables, understand how data is updated, inspect runs, and
 | Investigate a failed execution | [Runs](metatables/monitoring/runs/index.md) |
 | Browse related tables and shared access | [Namespaces](metatables/catalog/namespaces/index.md) |
 | Administer sharing | [Security](admin/administration/security/index.md) |
-| Choose the runtime Data Source or finish its setup | [Settings](admin/administration/settings/index.md) |
+| Review the runtime database or finish its setup | [Settings](admin/administration/settings/index.md) |
 
 ## Get started
 
 Open **MetaTables** and choose a feature under **Catalog**. Search or filter a list, then select an item to see its details. Detail tabs keep the selected item in view while you inspect its different aspects. Close the navigation panel with its X when you need more room; choose the work area again to reopen it.
 
-To add a database, an admin first [adds a Data Source](metatables/catalog/data-sources/add-data-source.md). Selecting it for the runtime is a [separate action in Settings](admin/administration/settings/select-data-source.md).
+To add a database, an admin [adds a Data Source](metatables/catalog/data-sources/add-data-source.md). The runtime database is [set up separately](admin/administration/settings/runtime-database.md): in Settings for Local mode, by the deployment for Hosted mode.
 
 If the application asks for Data Source setup, ask an admin to open Settings. Do not reset a database to resolve a routine connection or access error.
 

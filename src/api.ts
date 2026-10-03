@@ -17,18 +17,33 @@ export type RuntimeSourceInput = {
   class_type: "sqlite" | "postgresql" | "timescale_db" | "mysql" | "mssql";
   configuration: Record<string, string | number | boolean | null>;
 };
+/** The hosted runtime database as the deployment declares it: names, never secret values. */
+export type RuntimeDatabaseDeclaration = {
+  engine: "postgresql" | "timescale_db" | "mysql" | "mssql";
+  uri_secret: string;
+  default_schema: string | null;
+  tls: {
+    mode: "disable" | "require" | "verify-ca" | "verify-full";
+    ca_secret: string | null;
+    client_certificate_secret: string | null;
+    client_key_secret: string | null;
+  };
+};
 export type RuntimeBootstrap = {
   status: "unconfigured" | "migration_required" | "registration_required" | "migrating" | "ready" | "incompatible" | "unavailable";
   active: boolean;
-  can_configure?: boolean;
-  selected_source_uid?: string | null;
+  /** Local mode is configured in Settings; the hosted runtime database is declared by the deployment. */
+  managed_by: "settings" | "deployment";
+  declaration: RuntimeDatabaseDeclaration | null;
+  can_configure: boolean;
+  selected_source_uid: string | null;
   candidate: RuntimeSourceInput | null;
   error: string | null;
   current_revisions: string[];
   required_revisions: string[];
-  pending_revisions?: string[];
-  migration_status?: "unconfigured" | "up_to_date" | "pending" | "incompatible" | "unavailable" | "migrating" | null;
-  migration_error?: string | null;
+  pending_revisions: string[];
+  migration_status: "unconfigured" | "up_to_date" | "pending" | "incompatible" | "unavailable" | "migrating" | null;
+  migration_error: string | null;
 };
 
 export type RuntimeContext = {
@@ -494,7 +509,6 @@ export const metaTablesApi = {
   refreshRelation: (uid: string) => request<{ ok: boolean }>("POST", `meta-tables/${encodeURIComponent(uid)}/introspect/`, { body: {} }),
   readRelation: (uid: string, body: RelationReadRequest, signal?: AbortSignal) => request<RelationRowsResult>("POST", `meta-tables/${encodeURIComponent(uid)}/read/`, { body, signal }),
   configureRuntimeSource: (body: RuntimeSourceInput) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/configure/", { body }),
-  selectHostedSource: (uid: string) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/select/", { body: { source_uid: uid } }),
   migrateRuntimeSource: () => request<RuntimeBootstrap>("POST", "runtime-bootstrap/migrate/"),
   activateRuntimeSource: () => request<RuntimeBootstrap>("POST", "runtime-bootstrap/activate/"),
   destroyLocalRuntime: (path: string, confirmation: string) => request<RuntimeBootstrap>("POST", "runtime-bootstrap/destroy-local/", { body: { path, confirmation } }),

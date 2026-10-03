@@ -30,7 +30,7 @@ Choose **MetaTables → Catalog → Data Sources**, or <a href="/data-sources">o
 
 ## Understand what you see
 
-A Data Source represents a database. Registering one makes it available in the list; it does not automatically select it for the runtime. Admins choose that separately in [Settings](../../../admin/administration/settings/index.md).
+A Data Source represents a database. Registering one makes it available in the list; it never becomes the runtime database. Local mode sets up its runtime database in [Settings](../../../admin/administration/settings/index.md); in Hosted mode the deployment declares it, and Data Sources can be added once it is active.
 
 The local SQLite Data Source comes from Local runtime mode. It is not an engine option for registering another remote database. Some actions depend on the selected Data Source, its storage access, and your permissions.
 
@@ -38,4 +38,4 @@ Removing a registration removes the catalog entry, not the database or its data.
 
 ## If something goes wrong
 
-If a source is missing, clear the search and refresh the list. Ask an admin to check its registration and access. If the page reports that the active Data Source needs migrations, an admin must finish setup in Settings. A failed connection test does not create or update the Data Source.
+If a source is missing, clear the search and refresh the list. Ask an admin to check its registration and access. If the page reports that the runtime database needs migrations, an admin finishes setup in Settings in Local mode; in Hosted mode a deployment applies them. A failed connection test does not create or update the Data Source.
