@@ -1,6 +1,6 @@
 ---
 title: Settings
-description: Choose the runtime mode, review the runtime database, and check whether its setup is complete.
+description: See the active runtime mode, review the runtime database, and check whether its setup is complete.
 audience: end-user
 pageType: feature
 ---
@@ -13,7 +13,7 @@ Choose **Admin → Settings**, or <a href="/admin/settings">open Settings</a>. P
 
 ## What you can do
 
-The **Runtime** section brings together **API runtime mode** and the runtime database. In Local mode you set up the workspace's SQLite file here. In Hosted mode the deployment declares the database, and Settings shows it read-only. Review **Migrations** to see whether its database setup is current.
+The **Runtime** section shows the API's active **API runtime mode** and its runtime database. In Local mode you set up the workspace's SQLite file here. In Hosted mode the deployment declares the database, and Settings shows it read-only. Review **Migrations** to see whether its database setup is current.
 
 ## Common tasks
 

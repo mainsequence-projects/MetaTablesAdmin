@@ -6,16 +6,13 @@ import { DataSourceTypeIcon, sourceEngineLabel } from "./DataSourceTypeIcon";
 import { runtimeDataSourceProblem } from "./runtimeDataSourceProblem";
 import type { RemoteState } from "./ui";
 
-type Context = { runtime: RuntimeContext; refresh: () => Promise<RuntimeContext>;
-  switchMode: (mode: "local" | "hosted") => Promise<void>; switchError: string };
+type Context = { runtime: RuntimeContext; refresh: () => Promise<RuntimeContext> };
 const RuntimeContextValue = createContext<Context | null>(null);
 
 export function RuntimeContextProvider({ children }: { children: ReactNode }) {
   const [remote, setRemote] = useState<RemoteState<RuntimeContext>>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const active = useRef<AbortController | null>(null);
-  const [switching, setSwitching] = useState(false);
-  const [switchError, setSwitchError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
     active.current = controller;
@@ -24,7 +21,7 @@ export function RuntimeContextProvider({ children }: { children: ReactNode }) {
       data => { if (!controller.signal.aborted) setRemote({ status: "ready", data }); },
       error => { if (!controller.signal.aborted) setRemote({ status: "error", error: error instanceof Error ? error : new Error("Unable to read API runtime context") }); },
     );
-    return () => { controller.abort(); active.current?.abort(); };
+    return () => controller.abort();
   }, [attempt]);
   // Re-read the runtime when the API reports a newer one; views remount with it.
   useEffect(() => onRuntimeChanged(() => setAttempt(value => value + 1)), []);
@@ -34,50 +31,12 @@ export function RuntimeContextProvider({ children }: { children: ReactNode }) {
     if (!signal?.aborted) setRemote({ status: "ready", data });
     return data;
   }
-  async function switchMode(mode: "local" | "hosted") {
-    if (remote.status !== "ready" || switching) return;
-    const previous = remote.data;
-    setSwitchError("");
-    // Keep the current page mounted until admission succeeds so a 409 (active
-    // update/migration) can be shown without destroying the user's page state.
-    try {
-      const result = await metaTablesApi.selectRuntime(mode);
-      if (!result.restarting) return;
-    } catch (e) {
-      setSwitchError(e instanceof Error ? e.message : "Runtime switch was rejected");
-      return;
-    }
-    active.current?.abort();
-    const controller = new AbortController();
-    active.current = controller;
-    setSwitching(true);
-    const deadline = Date.now() + 120_000;
-    while (Date.now() < deadline && !controller.signal.aborted) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      try {
-        const context = await metaTablesApi.runtimeContext(
-          AbortSignal.any([controller.signal, AbortSignal.timeout(3000)]));
-        if (context.runtime_instance_id === previous.runtime_instance_id) continue;
-        setRemote({ status: "ready", data: context });
-        setSwitchError(context.runtime_switch_error ?? (context.local_mode === (mode === "local")
-          ? "" : "The API did not activate the requested mode."));
-        setSwitching(false);
-        return;
-      } catch { /* The old worker is stopping or its replacement is starting. */ }
-    }
-    if (!controller.signal.aborted) {
-      setRemote({ status: "error", error: new Error("Runtime restart did not complete. Check the API launch log, then retry.") });
-      setSwitching(false);
-    }
-  }
-  if (switching) return <ApplicationStatusScreen variant="viewport" state="loading"
-    title="Switching API runtime" message="Waiting for the API to restart in the selected mode." />;
   if (remote.status !== "ready") return <ApplicationStatusScreen variant="viewport"
     title={remote.status === "error" ? "Could not initialize MetaTables" : "Reading API runtime"}
     message={remote.status === "error" ? remote.error.message : "Loading the API's runtime and settings."}
     state={remote.status === "error" ? "error" : "loading"}
     action={remote.status === "error" ? { label: "Retry", onSelect: () => setAttempt(value => value + 1) } : undefined} />;
-  return <RuntimeContextValue.Provider value={{ runtime: remote.data, refresh, switchMode, switchError }}>
+  return <RuntimeContextValue.Provider value={{ runtime: remote.data, refresh }}>
     <Fragment key={remote.data.runtime_instance_id ?? "hosted"}>{children}</Fragment>
   </RuntimeContextValue.Provider>;
 }
