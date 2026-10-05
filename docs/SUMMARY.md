@@ -10,6 +10,7 @@ This map and the Docusaurus sidebar are generated from `documentation/navigation
       - [Query a Data Source](metatables/catalog/data-sources/query-data-source.md)
       - [Import existing tables](metatables/catalog/data-sources/import-tables.md)
     - [MetaTables](metatables/catalog/tables/index.md)
+      - [Find a table](metatables/catalog/tables/find-table.md)
       - [Share a table](metatables/catalog/tables/share-table.md)
     - [Time Index MetaTables](metatables/catalog/time-index-meta-tables/index.md)
     - [Time Index Table Updates](metatables/catalog/data-updates/index.md)

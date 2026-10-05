@@ -23,7 +23,7 @@ Choose **MetaTables → Catalog → Time Index MetaTables**, or <a href="/time-i
 
 ## Common tasks
 
-Search or filter the list, then select an item to open its details. Use the detail tabs to move between the available views.
+Search or filter the list, then select an item to open its details. **Deep search** finds time-index tables by what they contain, including their columns; see [Find a table](../tables/find-table.md). Use the detail tabs to move between the available views.
 
 ## Understand what you see
 

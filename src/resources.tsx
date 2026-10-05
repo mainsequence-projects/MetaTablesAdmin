@@ -18,7 +18,7 @@ function result<T>(page: Page<T>, pageIndex: number, pageSize: number): Resource
   };
 }
 
-function defineTablesResource(timeIndexOnly = false) {
+function defineTablesResource(timeIndexOnly = false, deep = false) {
   return defineResourceApplication<TableRecord, string>({
     id: timeIndexOnly ? "metatables-time-index-meta-tables" : "metatables-tables",
     label: resourceLabels[timeIndexOnly ? "time-index-meta-tables" : "tables"],
@@ -27,6 +27,16 @@ function defineTablesResource(timeIndexOnly = false) {
     getId: (table) => table.uid,
     adapter: {
       async list({ pageIndex, pageSize, search, filters, sort, signal }) {
+        if (deep && search?.trim()) {
+          // Deep search returns one ranked page; an empty box keeps the ordinary list.
+          const found = await metaTablesApi.searchTables({
+            search,
+            limit: pageSize,
+            kind: typeof filters?.kind === "string" ? filters.kind : undefined,
+            namespace_uid: typeof filters?.namespace_uid === "string" ? filters.namespace_uid : undefined,
+          }, timeIndexOnly, signal);
+          return result({ count: found.items.length, next: null, previous: null, results: found.items }, 0, pageSize);
+        }
         const listTables = timeIndexOnly ? metaTablesApi.listTimeIndexTables : metaTablesApi.listTables;
         const page = await listTables({
           limit: pageSize,
@@ -45,13 +55,17 @@ function defineTablesResource(timeIndexOnly = false) {
       { id: "kind", header: "Kind", importance: "secondary", renderCell: (table) => <ResourceStatusCell label={table.kind === "time_index" ? "Time-indexed" : table.management_mode === "external_registered" ? "External" : "Row table"} tone={table.kind === "time_index" ? "primary" : "neutral"} /> },
       { id: "source", header: "Data source", importance: "tertiary", renderCell: (table) => display(table.data_source_name ?? table.data_source_uid) },
       { id: "namespace", header: "Namespace", importance: "tertiary", renderCell: (table) => display(table.namespace_name) },
-      { id: "created", header: "Created", sortableKey: "created_at", importance: "tertiary", renderCell: (table) => formatDate(table.created_at) },
+      deep
+        ? { id: "matched", header: "Matched columns", importance: "secondary", renderCell: (table) => display(table.matched_columns?.join(", "), "Matched by description") }
+        : { id: "created", header: "Created", sortableKey: "created_at", importance: "tertiary", renderCell: (table) => formatDate(table.created_at) },
     ],
   });
 }
 
 export const tablesResource = defineTablesResource();
 export const timeIndexTablesResource = defineTablesResource(true);
+export const tablesDeepSearchResource = defineTablesResource(false, true);
+export const timeIndexTablesDeepSearchResource = defineTablesResource(true, true);
 
 export const updatesResource = defineResourceApplication<DataUpdateRecord, string>({
   id: "metatables-updates",

@@ -57,6 +57,11 @@ const sidebars = {
               "items": [
                 {
                   "type": "doc",
+                  "id": "metatables/catalog/tables/find-table",
+                  "label": "Find a table"
+                },
+                {
+                  "type": "doc",
                   "id": "metatables/catalog/tables/share-table",
                   "label": "Share a table"
                 }
