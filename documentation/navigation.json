@@ -43,6 +43,10 @@
               "applicationRoute": "/tables",
               "pages": [
                 {
+                  "id": "find-table",
+                  "label": "Find a table"
+                },
+                {
                   "id": "share-table",
                   "label": "Share a table"
                 }

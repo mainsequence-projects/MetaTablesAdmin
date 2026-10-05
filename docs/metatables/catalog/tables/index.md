@@ -15,7 +15,7 @@ Choose **MetaTables → Catalog → MetaTables**, or <a href="/tables">open Meta
 
 ## What you can do
 
-- Search and filter the catalog, then open a table.
+- Search the catalog with **Table search** (names, identifiers, namespaces and UIDs) or **Deep search** (what tables contain, including their columns), filter it, then open a table.
 - Review **Details** and the formatted **Description**.
 - Explore relationships in **ULM diagram**. Use the graph controls to zoom, fit the diagram, and inspect a table.
 - For relational tables, use **Rows** to browse data.
@@ -23,6 +23,7 @@ Choose **MetaTables → Catalog → MetaTables**, or <a href="/tables">open Meta
 
 ## Common tasks
 
+- [Find a table](find-table.md)
 - [Share a table](share-table.md)
 
 ## Understand what you see

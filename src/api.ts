@@ -94,6 +94,15 @@ export type TableRecord = {
   cadence?: string | null;
   created_at?: string | null;
   labels?: string[];
+  /** Deep search only: columns whose name or logical name matched the query. */
+  matched_columns?: string[];
+};
+
+export type TableSearchResult = { semantic: boolean; items: TableRecord[] };
+
+type TableSearchApi = {
+  semantic: boolean;
+  results: { table: TableApiRecord; score: number; matched_columns: string[] }[];
 };
 
 export type TableColumn = {
@@ -546,6 +555,15 @@ export const metaTablesApi = {
   listTimeIndexTables: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) =>
     mapPage(page<TableApiRecord>(await request("GET", "time-index-meta-tables/", { query: tableQuery(query), signal })), tableRecord),
   timeIndexTable: async (uid: string, signal?: AbortSignal) => tableRecord(await request<TableApiRecord>("GET", `time-index-meta-tables/${encodeURIComponent(uid)}/`, { signal })),
+  /** Deep search: ranks visible tables by meaning and columns (ADR 0018), in rank order. */
+  searchTables: async (query: Record<string, string | number | undefined>, timeIndexOnly: boolean, signal?: AbortSignal): Promise<TableSearchResult> => {
+    const { offset: _offset, ordering: _ordering, ...rest } = query;
+    const response = await request<TableSearchApi>("GET", `${timeIndexOnly ? "time-index-meta-tables" : "meta-tables"}/search/`, { query: tableQuery(rest), signal });
+    return {
+      semantic: response.semantic,
+      items: response.results.map(hit => ({ ...tableRecord(hit.table), matched_columns: hit.matched_columns })),
+    };
+  },
   tableDescription: (uid: string, signal?: AbortSignal) => request<{ content: string }>("GET", `meta-tables/${encodeURIComponent(uid)}/search-document/`, { signal }),
   tableGraph: async (uid: string, depth: number, incoming: boolean, signal?: AbortSignal) => schemaGraphRecord(await request<SchemaGraphApi>("GET", `meta-tables/${encodeURIComponent(uid)}/schema-graph`, { query: { depth, include_incoming: incoming }, signal })),
   tableSchemaGraph: (uid: string, depth: number, incoming: boolean, signal?: AbortSignal) => request<SchemaGraphApi>("GET", `meta-tables/${encodeURIComponent(uid)}/schema-graph`, { query: { depth, include_incoming: incoming }, signal }),

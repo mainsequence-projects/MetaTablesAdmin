@@ -10,8 +10,8 @@ import { DetailTabIcon } from "../detailTabIcons";
 import { JsonTreeViewer, type JsonTreeViewerHandle } from "../JsonTreeViewer";
 import { TimeIndexMetaTableIcon } from "../metatablesNavigation";
 import { detailPath, resourceLabels, type TableResource } from "../navigation";
-import { tablesResource, timeIndexTablesResource } from "../resources";
-import { Badge, Button, DetailSection, DetailView, display, Facts, formatDate, LoadingIndicator, RemoteContent, useRemote } from "../ui";
+import { tablesDeepSearchResource, tablesResource, timeIndexTablesDeepSearchResource, timeIndexTablesResource } from "../resources";
+import { Badge, Button, DetailSection, DetailView, display, Facts, formatDate, LoadingIndicator, RemoteContent, StatePanel, useRemote } from "../ui";
 import { UlmDiagramTab } from "./ulm/UlmDiagramTab";
 import { PermissionsPanel } from "./PermissionsPanel";
 import { RelationRows } from "./RelationRows";
@@ -43,15 +43,31 @@ function TableRegistry({ resource }: { resource: TableResource }) {
   const timeIndexOnly = resource === "time-index-meta-tables";
   const [kind, setKind] = useState("");
   const [namespaceUid, setNamespaceUid] = useState("");
+  const [searchMode, setSearchMode] = useState("table");
+  const deep = searchMode === "deep";
   const namespaces = useRemote("namespace-options", (signal) => metaTablesApi.listNamespaces({ limit: 200, offset: 0 }, signal));
-  return <ResourceListPage
-    definition={timeIndexOnly ? timeIndexTablesResource : tablesResource}
+  return <ApplicationPageStack>
+  {deep && <StatePanel title="Deep search">
+    Deep search ranks the tables you can read by what they contain, not only by their names. It reads each
+    table’s description, labels and namespace, and every column’s name and description, so “bond prices” can
+    find a table whose columns are clean_price and dirty_price. Results are in order of relevance, and
+    Matched columns shows which column names contain your words. Type a short English phrase such as
+    “daily FX rates”; leave the box empty to see the whole list.
+  </StatePanel>}
+  <ResourceListPage
+    definition={timeIndexOnly
+      ? deep ? timeIndexTablesDeepSearchResource : timeIndexTablesResource
+      : deep ? tablesDeepSearchResource : tablesResource}
     pageSize={25}
     tablePresentation="auto"
     searchable
     refreshable
-    searchPlaceholder="Search name, identifier, namespace, or UID"
+    searchPlaceholder={deep ? "Describe the data, e.g. bond prices" : "Search name, identifier, namespace, or UID"}
     filterDefinitions={[
+      { id: "search_mode", label: "Search", value: searchMode, onChange: setSearchMode, options: [
+        { label: "Table search", value: "table", subtitle: "Name, identifier, namespace or UID" },
+        { label: "Deep search", value: "deep", subtitle: "Meaning, descriptions and columns" },
+      ] },
       ...(!timeIndexOnly ? [{ id: "kind", label: "Kind", value: kind, onChange: setKind, options: [
         { label: "All kinds", value: "" },
         { label: "Time-indexed", value: "time_index" },
@@ -64,7 +80,8 @@ function TableRegistry({ resource }: { resource: TableResource }) {
       ] },
     ]}
     onRowActivate={(table) => navigate(detailPath(resource, table.uid))}
-  />;
+  />
+  </ApplicationPageStack>;
 }
 
 function TableDetailPage({ uid, requestedTab, resource }: { uid: string; requestedTab: string | null; resource: TableResource }) {
@@ -154,7 +171,7 @@ function ForeignKeys({ title, rows }: { title: string; rows: NonNullable<TableDe
 
 function DescriptionTab({ uid }: { uid: string }) {
   const remote = useRemote(`table-description-${uid}`, (signal) => metaTablesApi.tableDescription(uid, signal));
-  return <DetailSection title="Generated description" description="Search document derived from the registered table contract."><RemoteContent state={remote}>{(value) => <Suspense fallback={<LoadingIndicator label="Loading description…" />}><MarkdownDocument content={value.content || "No description generated."} /></Suspense>}</RemoteContent></DetailSection>;
+  return <DetailSection title="Generated description" description="The document deep search indexes: this table's own description, labels, namespace and columns."><RemoteContent state={remote}>{(value) => <Suspense fallback={<LoadingIndicator label="Loading description…" />}><MarkdownDocument content={value.content || "No description generated."} /></Suspense>}</RemoteContent></DetailSection>;
 }
 
 function StatsTab({ uid }: { uid: string }) {

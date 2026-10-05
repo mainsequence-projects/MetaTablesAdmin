@@ -117,6 +117,31 @@ test("the Description tab requests the mounted table document endpoint", async (
   assert.deepEqual(await pending, document);
 });
 
+test("deep search calls the ranked search route and keeps rank order and matched columns", async () => {
+  const calls = transport();
+  const pending = api.searchTables({ search: "bond prices", limit: 25, offset: 50, ordering: "physical_table_name",
+    kind: "time_index", namespace_uid: "ns-1" }, false);
+  await Promise.resolve();
+  const url = new URL(calls[0].path, "http://localhost");
+  assert.equal(url.pathname, "/meta-tables/search/");
+  assert.equal(url.searchParams.get("q"), "bond prices");
+  assert.equal(url.searchParams.get("time_indexed"), "true");
+  assert.equal(url.searchParams.get("namespace_uid"), "ns-1");
+  assert.equal(url.searchParams.has("offset") || url.searchParams.has("ordering"), false);
+  calls[0].respond({ q: "bond prices", semantic: true, count: 2, results: [
+    { table: { uid: "b", physical_table_name: "valmer_bonds", time_indexed: true }, score: 0.03, matched_columns: ["clean_price"] },
+    { table: { uid: "a", physical_table_name: "fx_spot", time_indexed: true }, score: 0.01, matched_columns: [] },
+  ] });
+  const found = await pending;
+  assert.equal(found.semantic, true);
+  assert.deepEqual(found.items.map(item => [item.uid, item.kind, item.matched_columns]),
+    [["b", "time_index", ["clean_price"]], ["a", "time_index", []]]);
+  const timeIndex = transport();
+  api.searchTables({ search: "rates" }, true);
+  await Promise.resolve();
+  assert.equal(new URL(timeIndex[0].path, "http://localhost").pathname, "/time-index-meta-tables/search/");
+});
+
 test("Timescale policies and jobs use the ADR 0015 routes", async () => {
   const calls = transport();
   const policies = api.timescalePolicies("daily close");
