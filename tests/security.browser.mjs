@@ -48,6 +48,9 @@ try {
       } else if (path.endsWith('/effective-access/')) result = { effective_access: 'writer', remaining_access: 'writer', remaining_contributions: [] };
       else if (path.endsWith('/access-history/')) result = [];
       else if (path.endsWith('/security/resources/')) result = { tables: [{ uid, name: 'Prices' }], namespaces: [] };
+      else if (path.endsWith('/security/database-permissions/')) result = { status: 'ready', sql_enabled: true, synchronization_pending: false,
+        data_source_uid: uid, data_source_name: 'Local', engine: 'sqlite', enforcement: 'sqlite_authorizer', active_tables: 1, covered_tables: 1,
+        missing_policies: 0, tables: [{ uid, name: 'prices', schema: null, policy_present: true, writes_supported: true }] };
       else if (path.includes(`/meta-tables/${uid}`)) result = { uid, physical_table_name: 'prices', identifier: 'Prices', management_mode: 'platform_managed', schema_management_mode: 'alembic_managed', provisioning_status: 'active', table_kind: 'relational', columns: [], labels: [], data_source: { uid }, creation_date: '2026-09-29T00:00:00Z' };
       else result = { count: 0, results: [] };
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
@@ -78,7 +81,8 @@ try {
     await page.getByText('No grant changes recorded.', { exact: true }).waitFor();
     await page.locator('summary').filter({ hasText: "Check a user's access" }).click();
     await page.locator('button[aria-label="Access preview user"]').click();
-    await page.getByRole('option', { name: 'Alice', exact: true }).click();
+    // The transfer lists also hold an "Alice" option; pick the one in the preview Picker.
+    await page.getByRole('listbox', { name: 'Access preview user' }).getByRole('option', { name: 'Alice', exact: true }).click();
     await page.getByRole('button', { name: 'Check access', exact: true }).click();
     await page.getByText('Effective access: Writer', { exact: true }).waitFor();
     writer = false;
