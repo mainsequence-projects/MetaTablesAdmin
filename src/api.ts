@@ -231,13 +231,15 @@ export type GraphNode = { id: string; label: string; kind?: string; href?: strin
 export type GraphEdge = { source: string; target: string; label?: string | null; on_delete?: string | null };
 export type ResourceGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
 
-export type Principal = { uid: string; name: string; email?: string | null };
+/** A user or Team as the caller sees it in the platform directory. A workload User has no name of its own. */
+export type Principal = { uid: string; name: string; email?: string | null; identity_type?: "person" | "workload"; managed_by_caller?: boolean };
+export type PrincipalSearch = { users: Principal[]; teams: Principal[] };
 export type PermissionAssignments = {
   view: { users: string[]; teams: string[] };
   edit: { users: string[]; teams: string[] };
 };
 export type GrantContribution = { grant_uid: string; source: "direct" | "namespace"; namespace_uid: string | null; principal_kind: "user" | "team"; principal_uid: string; access_level: "reader" | "writer" };
-export type AccessPreview = { user_uid: string; effective_access: "reader" | "writer" | null; remaining_access: "reader" | "writer" | null; contributions: GrantContribution[]; remaining_contributions: GrantContribution[] };
+export type AccessPreview = { user_uid: string; effective_access: "reader" | "writer" | null; remaining_access: "reader" | "writer" | null; contributions: GrantContribution[]; remaining_contributions: GrantContribution[]; unreadable_team_uids?: string[] };
 export type AccessEvent = { uid: string; actor_user_uid: string | null; principal_kind: string; principal_uid: string; previous_access: string | null; new_access: string | null; created_at: string; reason: string };
 export type PermissionsDocument = {
   revision: string;
@@ -576,6 +578,7 @@ export const metaTablesApi = {
   createSecurityNamespace: (name: string) => request<Principal>("POST", "security/namespaces/", { body: { name } }),
   databasePermissionStatus: (signal?: AbortSignal) => request<DatabasePermissionStatus>("GET", "security/database-permissions/", { signal }),
   reconcilePermissions: () => request<{ ok: boolean; data_source_uid: string }>("POST", "security/reconcile/"),
+  searchPrincipals: (search: string, signal?: AbortSignal) => request<PrincipalSearch>("GET", "security/principals/", { query: { search }, signal }),
   effectiveAccess: (uid: string, userUid: string, withoutGrantUid?: string) => request<AccessPreview>("GET", `meta-tables/${encodeURIComponent(uid)}/effective-access/`, { query: { user_uid: userUid, without_grant_uid: withoutGrantUid } }),
   accessHistory: (uid: string, namespace = false) => request<AccessEvent[]>("GET", namespace ? "security/access-history/" : `meta-tables/${encodeURIComponent(uid)}/access-history/`, { query: namespace ? { kind: "namespace", uid } : undefined }),
   tablePermissions: (uid: string, signal?: AbortSignal) => request<PermissionsDocument>("GET", `meta-tables/${encodeURIComponent(uid)}/permissions`, { signal }),

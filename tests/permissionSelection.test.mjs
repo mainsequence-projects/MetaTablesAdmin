@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { principalName, samePermissionAssignments, selectPermissionPrincipals, sharingPrincipals } from "../src/permissionSelection.ts";
+import { managedWorkloads, principalName, samePermissionAssignments, selectPermissionPrincipals, sharingPrincipals, withFoundPrincipals } from "../src/permissionSelection.ts";
 
 test("the multi-picker preserves view access when edit selection changes", () => {
   const original = { view: { users: ["reader", "editor"], teams: ["team"] }, edit: { users: ["editor"], teams: ["team"] } };
@@ -43,4 +43,20 @@ test("unsaved sharing changes ignore ordering but detect role changes", () => {
   const reordered = { ...a, view: { users: ["b", "a"], teams: ["team"] } };
   assert.equal(samePermissionAssignments(a, reordered), true);
   assert.equal(samePermissionAssignments(a, selectPermissionPrincipals(a, "edit", "users", [])), false);
+});
+
+test("search results join the candidates once and keep what was already listed", () => {
+  const data = {
+    candidate_users: [{ uid: "alice", name: "Alice", email: "alice@example.test", identity_type: "person" }],
+    candidate_teams: [{ uid: "research", name: "Research" }],
+    assignments: { view: { users: [], teams: [] }, edit: { users: [], teams: [] } }, inherited: [], contributions: [],
+  };
+  const nightly = { uid: "nightly", name: "Job 8b1f (workload)", email: null, identity_type: "workload", managed_by_caller: true };
+  const merged = withFoundPrincipals(data, { users: [nightly, nightly, { uid: "alice", name: "Renamed" }], teams: [{ uid: "research", name: "Other" }] });
+  assert.deepEqual(merged.candidate_users.map(user => user.uid), ["alice", "nightly"]);
+  assert.equal(merged.candidate_users[0].name, "Alice");
+  assert.deepEqual(merged.candidate_teams, data.candidate_teams);
+  assert.equal(data.candidate_users.length, 1);
+  assert.deepEqual([...managedWorkloads(merged)], ["nightly"]);
+  assert.equal(sharingPrincipals(merged, "users").find(user => user.uid === "nightly").name, "Job 8b1f (workload)");
 });

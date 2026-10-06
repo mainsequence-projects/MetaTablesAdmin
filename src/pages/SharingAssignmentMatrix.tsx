@@ -6,14 +6,20 @@ import { sharingPrincipals } from "../permissionSelection";
 import { Badge, DetailSection } from "../ui";
 import "./sharing.css";
 
-/** Adapt table sharing roles to the SDK's controlled transfer lists. */
-export function SharingAssignmentMatrix({ data, value, disabled, namespace = false, onChange }: {
+/**
+ * Adapt table sharing roles to the SDK's controlled transfer lists. A table Reader who manages
+ * workloads can move only those workloads, and only among Readers.
+ */
+export function SharingAssignmentMatrix({ data, value, disabled, namespace = false, managed = new Set(), onChange }: {
   data: PermissionsDocument;
   value: PermissionAssignments;
   disabled: boolean;
   namespace?: boolean;
+  managed?: ReadonlySet<string>;
   onChange: (scope: "view" | "edit", kind: "users" | "teams", values: readonly string[]) => void;
 }) {
+  const managerOnly = !data.can_edit && !namespace && managed.size > 0;
+  const editable = (scope: "view" | "edit", kind: "users" | "teams") => data.can_edit || managerOnly && scope === "view" && kind === "users";
   return <ApplicationCardGrid minimumCardWidth="30rem">
     {(["view", "edit"] as const).map(scope => <DetailSection key={scope} titleAs="h3"
       title={scope === "view" ? "Readers" : "Writers / Owners"}
@@ -29,16 +35,17 @@ export function SharingAssignmentMatrix({ data, value, disabled, namespace = fal
               ? person.email && person.email !== person.name ? person.email : undefined
               : "Name unavailable from the directory",
             icon: kind === "users" ? UserRound : UsersRound,
-            disabled: !person.available && !value[scope][kind].includes(person.uid),
+            disabled: (!person.available && !value[scope][kind].includes(person.uid)) || (managerOnly && !managed.has(person.uid)),
             meta: scope === "view" && value.edit[kind].includes(person.uid) ? "Writer" : undefined,
           }))}
           value={value[scope][kind]}
           onValueChange={values => onChange(scope, kind, values)}
-          disabled={!data.can_edit}
+          disabled={!editable(scope, kind)}
           pending={disabled}
           description={data.can_edit ? scope === "view"
             ? "Removing Reader access also removes Writer access."
-            : "Removing Writer access keeps Reader access." : undefined}
+            : "Removing Writer access keeps Reader access."
+            : editable(scope, kind) ? "You can give the workloads you manage Reader access, or remove it." : undefined}
           emptyAvailableMessage={`No available ${kind}.`}
           emptySelectedMessage={`No ${kind} assigned.`}
         />

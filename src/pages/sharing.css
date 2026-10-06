@@ -1,3 +1,4 @@
 /* Surrounding sharing status and inspection tools; the SDK owns transfer lists. */
 .sharing-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--application-card-header-gap); }
 .sharing-access-check { max-width: 32rem; }
+.sharing-search { max-width: 32rem; }
