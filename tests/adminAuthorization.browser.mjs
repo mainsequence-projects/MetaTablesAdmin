@@ -49,6 +49,9 @@ try {
             candidate: null, current_revisions: [], required_revisions: [] },
           dialect: local ? 'sqlite' : 'postgresql', paramstyle: 'named', default_schema: 'public' };
       } else if (path === '/api/security/resources/') result = { tables: [], namespaces: [] };
+      else if (path === '/api/security/database-permissions/') result = { status: 'ready', sql_enabled: true, synchronization_pending: false,
+        data_source_uid: uid, data_source_name: 'Analytics', engine: 'postgresql', enforcement: 'database_roles', active_tables: 0,
+        covered_tables: 0, missing_policies: 0, tables: [] };
       else if (path === `/api/data-sources/${uid}/summary/`) result = {
         entity: { id: uid, title: 'Analytics' }, inline_fields: [], highlight_fields: [], badges: [], labels: [], stats: [],
       };
@@ -116,7 +119,8 @@ try {
 
     // Configuration errors must not send an ordinary user to Settings.
     await page.goto(`${url}/tables`);
-    await page.getByText('Ask an application admin to configure or restore the runtime DataSource.', { exact: true }).waitFor();
+    // The status screen also announces its message in a live region, so the text appears twice.
+    await page.getByText('Ask an application admin to complete or restore the runtime DataSource setup.', { exact: true }).first().waitFor();
     assert.equal(await page.getByRole('button', { name: 'Open Settings', exact: true }).count(), 0);
     isAdmin = true;
     await page.goto(`${url}/settings?tab=runtime#database`);
