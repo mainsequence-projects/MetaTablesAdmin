@@ -20,10 +20,14 @@ resources:
           resource_release:
             repository: MetaTables
             key: metatables
-        # The development MetaTables Analyst and its Environment, for the assistant rail. A
-        # build value cannot name an Agent yet (tdag-django#911), so these are UIDs.
-        VITE_METATABLES_AGENT_UID: 6073b33c-f9aa-4149-8172-b284c01a06b4
-        VITE_METATABLES_ENVIRONMENT_UID: 58218213-5e4e-43de-a5bd-6757f4e1c8f6
+        # The assistant rail's Analyst and the Environment this site is built for;
+        # Django resolves both at every build (tdag-django#911).
+        VITE_METATABLES_AGENT_UID:
+          harness_agent:
+            repository: MetaTables
+            key: metatables-analyst-agent
+        VITE_METATABLES_ENVIRONMENT_UID:
+          organization_environment: current
       automatic_deployment: true
       automatic_redeployment:
         enabled: true
