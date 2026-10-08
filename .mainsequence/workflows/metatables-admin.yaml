@@ -17,7 +17,7 @@ resources:
       spa_entry_file: /index.html
       # Public release identity of the production MetaTables FastAPI, not a credential.
       build_environment:
-        VITE_METATABLES_RESOURCE_RELEASE_UID: 415ecd03-393c-4497-96c1-c4ca05ffaac0
+        VITE_METATABLES_RESOURCE_RELEASE_UID: d105a3eb-82ac-4c00-85fb-fcc9c9024e65
       automatic_deployment: true
       automatic_redeployment:
         enabled: true
