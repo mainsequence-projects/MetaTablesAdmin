@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { matchPath, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { createStaticSiteIframeClient } from "@dev-mainsequence/command-center-sdk/embed";
+import { createStaticSiteIframeClient, type StaticSiteIframeClient } from "@dev-mainsequence/command-center-sdk/embed";
 import { ApplicationStatusScreen } from "@dev-mainsequence/command-center-sdk/feedback";
 import { ApplicationPage, ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@dev-mainsequence/command-center-sdk/navigation";
 import { applyThemePresetToRoot, mainSequenceTheme, quartzLightTheme, resolveCommandCenterThemeById } from "@dev-mainsequence/command-center-sdk/theme";
 import { setHostedMetaTablesTransport } from "./api";
+import { ASSISTANT_NAME, assistantConfiguration, isAssistantPath, type AssistantConfiguration } from "./assistant/config";
 import { adminNavigation, metatablesNavigation, navigationApplications, userGuideNavigation } from "./metatablesNavigation";
 import { adminPaths, resourceForPath, resourceLabels, type Resource } from "./navigation";
 import { DataUpdatesPage } from "./pages/DataUpdatesPage";
@@ -24,12 +25,17 @@ import { DataSourceConfigurationError, RuntimeContextProvider, useRuntimeContext
 
 type PageResource = Resource;
 type RuntimeState = { status: "loading" | "ready" | "error"; message: string; generation: number };
+type HostConnection = { client: StaticSiteIframeClient | null; userUid: string | null };
+type AssistantSetup = { config: AssistantConfiguration; host: HostConnection };
 
-function useMetaTablesRuntime(): RuntimeState {
+const AssistantExperience = lazy(() => import("./assistant/Assistant").then(module => ({ default: module.AssistantExperience })));
+
+function useMetaTablesRuntime(): RuntimeState & { host: HostConnection } {
   const localDirect = import.meta.env.DEV && window.parent === window;
   const [state, setState] = useState<RuntimeState>(localDirect
     ? { status: "ready", message: "", generation: 0 }
     : { status: "loading", message: "Waiting for Command Center context.", generation: 0 });
+  const [host, setHost] = useState<HostConnection>({ client: null, userUid: null });
   const userUid = useRef<string | null>(null);
 
   useEffect(() => {
@@ -68,6 +74,7 @@ function useMetaTablesRuntime(): RuntimeState {
         applyThemePresetToRoot(document.documentElement, { theme });
         if (identityChanged) {
           setHostedMetaTablesTransport((path, init) => client.fetchFastApi({ resourceReleaseUid: releaseUid, path }, init));
+          setHost({ client, userUid: context.userUid });
         }
         setState((current) => ({ status: "ready", message: "", generation: current.generation + (userChanged ? 1 : 0) }));
         userUid.current = context.userUid;
@@ -83,11 +90,12 @@ function useMetaTablesRuntime(): RuntimeState {
       window.clearTimeout(timeout);
       window.removeEventListener("message", handleMessage);
       setHostedMetaTablesTransport(null);
+      setHost({ client: null, userUid: null });
       client.dispose();
     };
   }, [localDirect]);
 
-  return state;
+  return { ...state, host };
 }
 
 function ResourceRoute({ resource }: { resource: PageResource }) {
@@ -123,7 +131,7 @@ function LegacyRouteRedirect({ to }: { to: string }) {
   return <Navigate replace to={`${to}${search}${hash}`} />;
 }
 
-function AuthorizedApplication() {
+function AuthorizedApplication({ assistant }: { assistant?: AssistantSetup }) {
   const { runtime } = useRuntimeContext();
   const isAdmin = runtime.is_admin === true;
   const applications = isAdmin ? navigationApplications : [metatablesNavigation];
@@ -137,16 +145,17 @@ function AuthorizedApplication() {
   const activeDestinationId = `metatables.${isAdmin && adminRoute ? adminDestination : resource}`;
   const [openApplicationId, setOpenApplicationId] = useState<string | null>(activeApplicationId);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const assistantRoute = isAssistantPath(location.pathname);
 
   useEffect(() => {
     setOpenApplicationId(activeApplicationId);
   }, [activeApplicationId]);
 
   useEffect(() => {
-    const title = adminRoute ? !isAdmin ? "Admin access required" : adminDestination === "security" ? "Security"
+    const title = assistantRoute ? ASSISTANT_NAME : adminRoute ? !isAdmin ? "Admin access required" : adminDestination === "security" ? "Security"
       : "Settings" : resourceLabels[resource];
     document.title = `${title} · MetaTables Admin`;
-  }, [resource, adminRoute, adminDestination, isAdmin]);
+  }, [resource, adminRoute, adminDestination, isAdmin, assistantRoute]);
 
   function handleNavigate(intent: NavigationIntent) {
     const application = applications.find(item => item.id === intent.applicationId);
@@ -189,13 +198,11 @@ function AuthorizedApplication() {
   </ApplicationPage>;
 
   // A non-admin has one work area. Do not mount an Admin rail, panel or destination.
-  if (!isAdmin) return <ApplicationNavigationPanelShell application={metatablesNavigation}
+  const renderShell = (page: ReactNode) => !isAdmin ? <ApplicationNavigationPanelShell application={metatablesNavigation}
     activeDestinationId={activeDestinationId} menuOpen={menuOpen} onMenuOpenChange={setMenuOpen}
     onNavigate={handleNavigate} panelWidth="254px" presentation="auto" showDestinationDescriptions>
-    {content}
-  </ApplicationNavigationPanelShell>;
-
-  return <ApplicationNavigationShell
+    {page}
+  </ApplicationNavigationPanelShell> : <ApplicationNavigationShell
     activeApplicationId={activeApplicationId}
     activeDestinationId={activeDestinationId}
     applications={applications}
@@ -216,12 +223,22 @@ function AuthorizedApplication() {
     presentation="auto"
     showDestinationDescriptions
   >
-    {content}
+    {page}
   </ApplicationNavigationShell>;
+
+  if (!assistant) return renderShell(content);
+  // The MetaTables Analyst reads as the person it serves, so every person gets the assistant.
+  return <Suspense fallback={renderShell(assistantRoute
+    ? <ApplicationStatusScreen variant="contained" state="loading" title="Preparing the assistant" message={`Loading the ${ASSISTANT_NAME}.`} />
+    : content)}>
+    <AssistantExperience config={assistant.config} hostClient={assistant.host.client} hostUserUid={assistant.host.userUid}
+      runtimeUserUid={runtime.user_uid ?? null} normalContent={content} renderShell={renderShell} />
+  </Suspense>;
 }
 
 export default function App() {
   const runtime = useMetaTablesRuntime();
+  const [assistantConfig] = useState(() => assistantConfiguration(window.parent !== window, window.location.search));
   if (runtime.status !== "ready") return <ApplicationStatusScreen
     variant="viewport"
     title={runtime.status === "error" ? "MetaTables Admin unavailable" : "Preparing MetaTables Admin"}
@@ -229,5 +246,5 @@ export default function App() {
     state={runtime.status === "error" ? "error" : "loading"}
     action={runtime.status === "error" ? { label: "Retry", onSelect: () => window.location.reload() } : undefined}
   />;
-  return <RuntimeContextProvider key={runtime.generation}><AuthorizedApplication /></RuntimeContextProvider>;
+  return <RuntimeContextProvider key={runtime.generation}><AuthorizedApplication assistant={{ config: assistantConfig, host: runtime.host }} /></RuntimeContextProvider>;
 }

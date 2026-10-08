@@ -148,6 +148,29 @@ The backend checkout provides the same local launch configuration, with
 `metatables.adminPath` identifying this admin checkout. Both configurations run
 the same launcher and enable Python subprocess debugging.
 
+## MetaTables Analyst assistant
+
+Every page has the MetaTables Analyst: a right rail from Command Center AI
+(`@dev-mainsequence/command-center-ai`) that docks beside the page from 1400px
+and floats below, and the expanded rail at `/assistant` with its sessions. Both
+share one conversation. The Analyst reads only what the person can read, so
+everyone gets it. `src/assistant/` holds it; the package's skills are in
+`.agents/skills/command-center-ai/`.
+
+- **Deployed:** the build names the Analyst and its Environment with
+  `VITE_METATABLES_AGENT_UID` and `VITE_METATABLES_ENVIRONMENT_UID`, and
+  Command Center sends the chat's platform requests as the person. Without
+  both values the site shows no assistant.
+- **Stand-in:** open `http://127.0.0.1:19473/tables?stand-in`. Command Center
+  AI's scripted stand-in (`src/dev/stand-in/`, copied from the package, never
+  bundled) answers every platform and Agent request; `window.chatStandIn`
+  drives it.
+- **Local Agent:** start the Analyst with `ms-tau` in local mode from the
+  MetaTables checkout, set `VITE_METATABLES_ASSISTANT_SOURCE=local` in
+  `.env.development.local` and restart Vite. The dev server forwards `/tau` to
+  `MAINSEQUENCE_TAU_LOCAL_ORIGIN` (default `http://127.0.0.1:8787`), and the
+  Agent acts as the developer who started it.
+
 ## Hosted data
 
 There is no runtime switch. Hosted data is reached through the deployed API and
