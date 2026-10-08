@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Field } from "@dev-mainsequence/command-center-sdk/controls";
+import { Field, Input } from "@dev-mainsequence/command-center-sdk/controls";
 import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import { DataTable } from "@dev-mainsequence/command-center-sdk/views";
-import { metaTablesApi, type AccessPreview, type AccessEvent, type PermissionAssignments, type PermissionsDocument } from "../api";
-import { principalName, samePermissionAssignments, selectPermissionPrincipals } from "../permissionSelection";
+import { metaTablesApi, type AccessPreview, type AccessEvent, type PermissionAssignments, type PermissionsDocument, type PrincipalSearch } from "../api";
+import { managedWorkloads, principalName, samePermissionAssignments, selectPermissionPrincipals, withFoundPrincipals } from "../permissionSelection";
 import { Badge, Button, Card, DetailSection, formatDate, RemoteContent, Picker, useRemote } from "../ui";
 import { SharingAssignmentMatrix } from "./SharingAssignmentMatrix";
 
 const blank: PermissionAssignments = { view: { users: [], teams: [] }, edit: { users: [], teams: [] } };
+const noneFound: PrincipalSearch = { users: [], teams: [] };
 const accessName = (value: string | null) => value === "writer" ? "Writer" : value === "reader" ? "Reader" : "No access";
 
 export function PermissionsPanel({ requestKey, resourceUid, load, save, namespace = false, embedded = false }: {
@@ -28,15 +29,24 @@ export function PermissionsPanel({ requestKey, resourceUid, load, save, namespac
   const [preview, setPreview] = useState<AccessPreview | null>(null);
   const [events, setEvents] = useState<AccessEvent[] | null>(null);
   const [inspecting, setInspecting] = useState(false);
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<PrincipalSearch>(noneFound);
+  const [searching, setSearching] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
 
   useEffect(() => {
     setMessage(null); setError(null); setPreview(null); setEvents(null); setSubject(null);
+    setQuery(""); setFound(noneFound); setSearchNote(null);
     if (remote.status === "ready") { setAssignments(remote.data.assignments); setDocument(remote.data); }
     else { setDocument(null); setAssignments(blank); }
   }, [remote]);
 
-  const data = document ?? (remote.status === "ready" ? remote.data : null);
+  const loaded = document ?? (remote.status === "ready" ? remote.data : null);
+  const data = loaded && withFoundPrincipals(loaded, found);
   const dirty = Boolean(data && !samePermissionAssignments(assignments, data.assignments));
+  // A table Reader may still give the workloads they manage Reader access.
+  const managed = data ? managedWorkloads(data) : new Set<string>();
+  const editable = Boolean(data && (data.can_edit || !namespace && managed.size > 0));
 
   function select(scope: "view" | "edit", kind: "users" | "teams", values: readonly string[]) {
     setAssignments(current => selectPermissionPrincipals(current, scope, kind, values));
@@ -52,8 +62,21 @@ export function PermissionsPanel({ requestKey, resourceUid, load, save, namespac
     finally { setInspecting(false); }
   }
 
+  async function findPrincipals() {
+    const text = query.trim();
+    if (!text || searching) return;
+    setSearching(true); setError(null); setSearchNote(null);
+    try {
+      const result = await metaTablesApi.searchPrincipals(text);
+      setFound(current => ({ users: [...current.users, ...result.users], teams: [...current.teams, ...result.teams] }));
+      const count = result.users.length + result.teams.length;
+      setSearchNote(count ? `${count} found. They are listed under Available.` : `No one you can see matches “${text}”.`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Search failed."); }
+    finally { setSearching(false); }
+  }
+
   async function handleSave() {
-    if (!data?.can_edit || !dirty || saving) return;
+    if (!data || !editable || !dirty || saving) return;
     setSaving(true); setError(null); setMessage(null);
     try {
       const result = await save(assignments, data.revision);
@@ -66,12 +89,14 @@ export function PermissionsPanel({ requestKey, resourceUid, load, save, namespac
 
   const Panel = embedded ? DetailSection : Card;
   return <ApplicationPageStack data-security-access><Panel title="Sharing"
-    description={data?.can_edit ? "Select users or teams, then use the arrows to add or remove their access. Save to apply your changes." : "Users and teams with access to this resource."}
-    actions={data?.can_edit ? <>
+    description={data?.can_edit ? "Select users or teams, then use the arrows to add or remove their access. Save to apply your changes."
+      : editable ? "You can give the workloads you manage Reader access to this table. Save to apply your changes."
+      : "Users and teams with access to this resource."}
+    actions={data && editable ? <>
       {dirty && <Button disabled={saving} onClick={() => { setAssignments(data.assignments); setError(null); }}>Discard changes</Button>}
       <Button variant="primary" pending={saving} disabled={!dirty || saving} onClick={() => void handleSave()}>Save access</Button>
     </> : undefined}>
-    <RemoteContent state={remote}>{loaded => { const data = document ?? loaded; return <>
+    <RemoteContent state={remote}>{ready => { const data = withFoundPrincipals(document ?? ready, found); return <>
       <div className="sharing-status" role="status">
         <Badge tone={data.effective_access === "writer" ? "accent" : "neutral"}>{namespace ? "Namespace access" : `Your table access: ${accessName(data.effective_access)}`}</Badge>
         {dirty ? <Badge tone="warning">Unsaved changes</Badge> : <span className="muted">{data.can_edit ? "Changes are applied when you save." : namespace ? "Only administrators can change namespace sharing." : "Only Writers or an administrator can change sharing."}</span>}
@@ -79,7 +104,17 @@ export function PermissionsPanel({ requestKey, resourceUid, load, save, namespac
       {namespace && <div role="note"><Badge tone="warning">Namespace sharing</Badge><p>Access applies to all current tables in this namespace. Changing it updates their inherited access. Only administrators can manage these assignments.</p></div>}
       {error && <div role="alert"><Badge tone="danger">Could not update sharing</Badge><p>{error}</p></div>}
       {message && <div role="status"><Badge tone="success">Saved</Badge><p>{message}</p></div>}
-      <SharingAssignmentMatrix data={data} value={assignments} disabled={saving} namespace={namespace} onChange={select} />
+      {editable && <form className="sharing-search" aria-label="Directory search"
+        onSubmit={event => { event.preventDefault(); void findPrincipals(); }}>
+        <Field label="Find people, Teams or workloads"
+          description="Search by name or email, or by a Job, release or Agent name. Matches are added to Available.">
+          <Input value={query} maxLength={200} disabled={searching || saving} onChange={event => setQuery(event.target.value)} />
+        </Field>
+        <Button type="submit" pending={searching} disabled={!query.trim() || searching || saving}>Find</Button>
+        {searchNote && <p className="muted" role="status">{searchNote}</p>}
+      </form>}
+      <SharingAssignmentMatrix data={data} value={assignments} disabled={saving} namespace={namespace}
+        managed={managedWorkloads(data)} onChange={select} />
       {data.inherited.length > 0 && <DetailSection title="Access from namespaces" titleAs="h3" description="These assignments are managed on the namespace. Removing direct access here does not remove namespace access.">
         <DataTable items={data.inherited} getId={grant => grant.grant_uid} presentation="auto" columns={[
           { id: "principal", header: "User or team", importance: "primary", renderCell: grant => principalName(data, grant.principal_kind, grant.principal_uid) },
@@ -102,6 +137,8 @@ export function PermissionsPanel({ requestKey, resourceUid, load, save, namespac
         <div className="sharing-status"><Button disabled={!subject || inspecting || saving} pending={inspecting} onClick={() => void inspectAccess()}>Check access</Button></div>
         {preview && <div role="status"><Badge>{`Effective access: ${accessName(preview.effective_access)}`}</Badge>
           {(preview.contributions ?? []).map(grant => <p key={grant.grant_uid}>{accessName(grant.access_level)} through {principalName(data, grant.principal_kind, grant.principal_uid)}{grant.source === "namespace" ? " from namespace sharing" : " from direct table sharing"}.</p>)}
+          {(preview.unreadable_team_uids ?? []).length > 0 && <p className="muted">
+            Access through {preview.unreadable_team_uids?.length === 1 ? "one granted Team" : `${preview.unreadable_team_uids?.length} granted Teams`} you cannot see is not counted.</p>}
         </div>}
       </ApplicationPageStack></details>}
       {data.can_edit && <details><summary>Access history</summary><ApplicationPageStack>

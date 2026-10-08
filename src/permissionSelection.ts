@@ -1,4 +1,4 @@
-import type { PermissionAssignments, PermissionsDocument, Principal } from "./api";
+import type { PermissionAssignments, PermissionsDocument, Principal, PrincipalSearch } from "./api";
 
 /** Edit access includes view access; removing view also removes edit access. */
 export function selectPermissionPrincipals(current: PermissionAssignments, scope: "view" | "edit", kind: "users" | "teams", values: readonly string[]): PermissionAssignments {
@@ -10,6 +10,25 @@ export function selectPermissionPrincipals(current: PermissionAssignments, scope
 }
 
 export type SharingPrincipal = Principal & { available: boolean };
+
+/** Add directory search results to the candidates; nothing listed is dropped or repeated. */
+export function withFoundPrincipals(data: PermissionsDocument, found: PrincipalSearch): PermissionsDocument {
+  const merge = (listed: Principal[], extra: readonly Principal[]) => {
+    const known = new Set(listed.map(principal => principal.uid));
+    const added = extra.filter(principal => {
+      if (known.has(principal.uid)) return false;
+      known.add(principal.uid);
+      return true;
+    });
+    return [...listed, ...added];
+  };
+  return { ...data, candidate_users: merge(data.candidate_users, found.users), candidate_teams: merge(data.candidate_teams, found.teams) };
+}
+
+/** Workloads the caller manages. A table Reader may give them Reader access (ADR-0048 section 5). */
+export function managedWorkloads(data: PermissionsDocument): ReadonlySet<string> {
+  return new Set(data.candidate_users.filter(user => user.managed_by_caller).map(user => user.uid));
+}
 
 const uuidLabel = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
