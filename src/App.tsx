@@ -11,7 +11,7 @@ import {
 } from "@dev-mainsequence/command-center-sdk/navigation";
 import { applyThemePresetToRoot, mainSequenceTheme, quartzLightTheme, resolveCommandCenterThemeById } from "@dev-mainsequence/command-center-sdk/theme";
 import { setHostedMetaTablesTransport } from "./api";
-import { ASSISTANT_NAME, assistantConfiguration, isAssistantPath, type AssistantConfiguration } from "./assistant/config";
+import { ASSISTANT_NAME, assistantConfiguration, hostedAssistant, isAssistantPath } from "./assistant/config";
 import { adminNavigation, metatablesNavigation, navigationApplications, userGuideNavigation } from "./metatablesNavigation";
 import { adminPaths, resourceForPath, resourceLabels, type Resource } from "./navigation";
 import { DataUpdatesPage } from "./pages/DataUpdatesPage";
@@ -26,7 +26,8 @@ import { DataSourceConfigurationError, RuntimeContextProvider, useRuntimeContext
 type PageResource = Resource;
 type RuntimeState = { status: "loading" | "ready" | "error"; message: string; generation: number };
 type HostConnection = { client: StaticSiteIframeClient | null; userUid: string | null };
-type AssistantSetup = { config: AssistantConfiguration; host: HostConnection };
+// How the page was opened; the Analyst and its Environment come from the API's runtime context.
+type AssistantSetup = { launch: { embedded: boolean; search: string }; host: HostConnection };
 
 const AssistantExperience = lazy(() => import("./assistant/Assistant").then(module => ({ default: module.AssistantExperience })));
 
@@ -228,17 +229,18 @@ function AuthorizedApplication({ assistant }: { assistant?: AssistantSetup }) {
 
   if (!assistant) return renderShell(content);
   // The MetaTables Analyst reads as the person it serves, so every person gets the assistant.
+  const assistantConfig = assistantConfiguration(assistant.launch.embedded, assistant.launch.search, hostedAssistant(runtime));
   return <Suspense fallback={renderShell(assistantRoute
     ? <ApplicationStatusScreen variant="contained" state="loading" title="Preparing the assistant" message={`Loading the ${ASSISTANT_NAME}.`} />
     : content)}>
-    <AssistantExperience config={assistant.config} hostClient={assistant.host.client} hostUserUid={assistant.host.userUid}
+    <AssistantExperience config={assistantConfig} hostClient={assistant.host.client} hostUserUid={assistant.host.userUid}
       runtimeUserUid={runtime.user_uid ?? null} normalContent={content} renderShell={renderShell} />
   </Suspense>;
 }
 
 export default function App() {
   const runtime = useMetaTablesRuntime();
-  const [assistantConfig] = useState(() => assistantConfiguration(window.parent !== window, window.location.search));
+  const [assistantLaunch] = useState(() => ({ embedded: window.parent !== window, search: window.location.search }));
   if (runtime.status !== "ready") return <ApplicationStatusScreen
     variant="viewport"
     title={runtime.status === "error" ? "MetaTables Admin unavailable" : "Preparing MetaTables Admin"}
@@ -246,5 +248,5 @@ export default function App() {
     state={runtime.status === "error" ? "error" : "loading"}
     action={runtime.status === "error" ? { label: "Retry", onSelect: () => window.location.reload() } : undefined}
   />;
-  return <RuntimeContextProvider key={runtime.generation}><AuthorizedApplication assistant={{ config: assistantConfig, host: runtime.host }} /></RuntimeContextProvider>;
+  return <RuntimeContextProvider key={runtime.generation}><AuthorizedApplication assistant={{ launch: assistantLaunch, host: runtime.host }} /></RuntimeContextProvider>;
 }

@@ -157,10 +157,12 @@ share one conversation. The Analyst reads only what the person can read, so
 everyone gets it. `src/assistant/` holds it; the package's skills are in
 `.agents/skills/command-center-ai/`.
 
-- **Deployed:** the build names the Analyst and its Environment with
-  `VITE_METATABLES_AGENT_UID` and `VITE_METATABLES_ENVIRONMENT_UID`, and
-  Command Center sends the chat's platform requests as the person. Without
-  both values the site shows no assistant.
+- **Deployed:** the MetaTables API's `/runtime-context/` names the Analyst its
+  branch deploys (`hosted_agent`) and its Environment (`hosted_environment`),
+  and Command Center sends the chat's platform requests as the person. The
+  build holds neither, so a re-created Analyst reaches the site with the API's
+  next deployment. When the API does not verify both, the site shows no
+  assistant.
 - **Stand-in:** open `http://127.0.0.1:19473/tables?stand-in`. Command Center
   AI's scripted stand-in (`src/dev/stand-in/`, copied from the package, never
   bundled) answers every platform and Agent request; `window.chatStandIn`

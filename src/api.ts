@@ -62,6 +62,12 @@ export type RuntimeContext = {
     is_production: boolean | null;
     required_repository_branch: string | null;
   } | null;
+  // The Harness Agent the API's branch deploys; older APIs omit it.
+  hosted_agent?: {
+    uid: string | null;
+    status: "verified" | "not_found" | "unavailable" | "not_configured";
+    name: string | null;
+  } | null;
   git_source: Record<string, string> | null;
   data_source_selection: "local_workspace" | "catalog_default" | "runtime_override" | "runtime_binding";
   bootstrap: RuntimeBootstrap | null;

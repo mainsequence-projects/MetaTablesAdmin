@@ -20,14 +20,6 @@ resources:
           resource_release:
             repository: MetaTables
             key: metatables
-        # The assistant rail's Analyst and the Environment this site is built for;
-        # Django resolves both at every build (tdag-django#911).
-        VITE_METATABLES_AGENT_UID:
-          harness_agent:
-            repository: MetaTables
-            key: metatables-analyst-agent
-        VITE_METATABLES_ENVIRONMENT_UID:
-          organization_environment: current
       automatic_deployment: true
       automatic_redeployment:
         enabled: true
