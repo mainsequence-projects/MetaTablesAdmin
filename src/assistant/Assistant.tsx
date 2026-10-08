@@ -73,6 +73,8 @@ function useAssistantRoutes() {
   const [returnLocation, setReturnLocation] = useState(DEFAULT_RETURN_LOCATION);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(() =>
     location.pathname === ASSISTANT_PATH ? requestedSession(location.search) : null);
+  // While New session starts one, the session that was on screen; undefined otherwise.
+  const [creatingFrom, setCreatingFrom] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     if (expanded) setRailOpen(false);
@@ -82,6 +84,11 @@ function useAssistantRoutes() {
 
   const sessionPath = (sessionId: string | null) =>
     sessionId ? `${ASSISTANT_PATH}?session=${encodeURIComponent(sessionId)}` : ASSISTANT_PATH;
+  const openSession = (sessionId: string) => {
+    setCreatingFrom(undefined);
+    setSelectedSessionId(sessionId);
+    navigate(sessionPath(sessionId));
+  };
 
   return {
     expanded,
@@ -90,7 +97,11 @@ function useAssistantRoutes() {
     railOpen,
     returnLocation,
     selectedSessionId,
-    setSelectedSessionId,
+    creatingFrom,
+    // As in Command Center: the rail and a bare `/assistant` show the default session, which the
+    // engine pins to its handle; `?session=` and a session New session started show their own.
+    showsDefaultSession: railOpen || (expanded && !selectedSessionId && creatingFrom === undefined),
+    requestedSessionId: expanded ? selectedSessionId : null,
     openRail: () => {
       if (expanded) navigate(returnLocation);
       setRailOpen(true);
@@ -105,14 +116,16 @@ function useAssistantRoutes() {
       navigate(isAssistantPath(new URL(returnLocation, window.location.origin).pathname) ? DEFAULT_RETURN_LOCATION : returnLocation);
       setRailOpen(true);
     },
-    openSession: (sessionId: string) => {
-      setSelectedSessionId(sessionId);
-      navigate(sessionPath(sessionId));
-    },
-    // The engine has selected the new session; the URL drops the old one.
-    afterCreateSession: () => {
+    openSession,
+    // New session: leave the default session so the engine keeps the one it starts.
+    startNewSession: (currentSessionId: string | null) => {
+      setCreatingFrom(currentSessionId);
       setSelectedSessionId(null);
-      navigate(ASSISTANT_PATH);
+      navigate(ASSISTANT_PATH, { replace: true });
+    },
+    dropSession: () => {
+      setSelectedSessionId(null);
+      if (expanded) navigate(ASSISTANT_PATH, { replace: true });
     },
     openConversation: () => navigate(sessionPath(selectedSessionId)),
     openProviders: () => {
@@ -178,12 +191,20 @@ function AssistantSurfaces({ agents, normalContent, notice, onOpenProviders, pro
   const engine = useChatEngine();
   const docked = useDockedRail();
   const railShown = routes.railOpen && !routes.expanded;
+  const { creatingFrom, openSession } = routes;
+
+  // The engine selected the session New session started; the URL names it.
+  useEffect(() => {
+    if (creatingFrom !== undefined && engine.currentSessionId && engine.currentSessionId !== creatingFrom) {
+      openSession(engine.currentSessionId);
+    }
+  }, [creatingFrom, engine.currentSessionId, openSession]);
   const page = routes.providers && providersPage
     ? providersPage
     : <div className="metatables-assistant-page">
         <ChatPageLayout
           explorer={{ agents, onOpenSession: routes.openSession }}
-          onCreateSession={routes.afterCreateSession}
+          onCreateSession={() => routes.startNewSession(engine.currentSessionId)}
           onMinimize={routes.minimize}
         >
           <ChatThread copy={copy} surface="page" viewer={viewer} onOpenModelProviderSettings={onOpenProviders} />
@@ -228,7 +249,7 @@ function LocalAssistantExperience({ basePath, normalContent, renderShell, runtim
     isVisible={routes.expanded || routes.railOpen}
     notify={setNotice}
     onRequestVisible={routes.openRail}
-    requestedSessionId={routes.selectedSessionId}
+    requestedSessionId={routes.requestedSessionId}
     viewContext={{ application: "metatables-admin", path: routes.expanded ? routes.returnLocation : routes.path }}
   >
     <AssistantSurfaces
@@ -339,9 +360,9 @@ function PlatformAssistantExperience(props: AssistantExperienceProps & { config:
     isVisible={routes.expanded || routes.railOpen}
     notify={setNotice}
     onRequestVisible={routes.openRail}
-    onRequestedSessionRemoved={() => { routes.setSelectedSessionId(null); if (routes.expanded) routes.afterCreateSession(); }}
-    requestedSessionId={routes.selectedSessionId}
-    showsDefaultSession
+    onRequestedSessionRemoved={routes.dropSession}
+    requestedSessionId={routes.requestedSessionId}
+    showsDefaultSession={routes.showsDefaultSession}
     viewContext={{ application: "metatables-admin", path: routes.expanded ? routes.returnLocation : routes.path }}
   >
     <AssistantSurfaces
