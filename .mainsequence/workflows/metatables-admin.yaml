@@ -15,9 +15,12 @@ resources:
       output_directory: dist
       routing_mode: spa
       spa_entry_file: /index.html
-      # Public release identity of the production MetaTables FastAPI, not a credential.
+      # Names the production MetaTables FastAPI; Django resolves its UID at every build.
       build_environment:
-        VITE_METATABLES_RESOURCE_RELEASE_UID: d105a3eb-82ac-4c00-85fb-fcc9c9024e65
+        VITE_METATABLES_RESOURCE_RELEASE_UID:
+          resource_release:
+            repository: MetaTables
+            key: metatables
       automatic_deployment: true
       automatic_redeployment:
         enabled: true
