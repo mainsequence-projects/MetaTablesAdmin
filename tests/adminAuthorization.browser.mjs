@@ -90,7 +90,8 @@ try {
       await page.goto(url + path);
       await page.getByText('Admin access required', { exact: true }).waitFor();
       await noAdminNavigation();
-      assert(requests.every(request => request.path === '/api/runtime-context/'), `Protected component requested data at ${path}`);
+      // Only the runtime context and the signed-in user (GET /caller/) load before the guard.
+      assert(requests.every(request => ['/api/runtime-context/', '/api/caller/'].includes(request.path)), `Protected component requested data at ${path}`);
     }
     for (const flag of [undefined, 'true', 1]) {
       isAdmin = flag;
@@ -164,7 +165,7 @@ try {
       await page.goto(url + path);
       await page.getByText('Page not found', { exact: true }).waitFor();
       assert.equal(page.url(), url + path);
-      assert(requests.every(request => request.path === '/api/runtime-context/'));
+      assert(requests.every(request => ['/api/runtime-context/', '/api/caller/'].includes(request.path)));
     }
 
     if (!local) {

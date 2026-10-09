@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import sirv from "sirv";
+import { localAgentProxy, platformRequestProxy } from "@dev-mainsequence/command-center-sdk/vite";
 
 export default defineConfig(({ mode }) => {
   const localEnv = loadEnv(mode, process.cwd(), "METATABLES_");
@@ -9,7 +10,11 @@ export default defineConfig(({ mode }) => {
   const localToken = localEnv.METATABLES_LOCAL_TOKEN;
 
   return {
-    plugins: [react(), {
+    plugins: [react(),
+      // The assistant on a local top-level page: platform requests as the developer, and the chat's
+      // routes to an `ms-tau` Agent on this machine (MAINSEQUENCE_TAU_LOCAL_ORIGIN, default :8787).
+      platformRequestProxy(),
+      localAgentProxy({ path: "/tau" }), {
       name: "user-guide",
       configureServer(server) {
         const serveGuide = sirv(fileURLToPath(new URL("./dist/docs", import.meta.url)), { dev: true, extensions: ["html"] });

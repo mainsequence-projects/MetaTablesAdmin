@@ -9,6 +9,7 @@ import { DetailTabIcon } from "../detailTabIcons";
 import { detailPath } from "../navigation";
 import { defineNamespaceTablesResource, namespacesResource } from "../resources";
 import { DetailSection, DetailView, display, Facts, formatDate, useRemote } from "../ui";
+import { AccessMapTab } from "./AccessMapTab";
 import { PermissionsPanel } from "./PermissionsPanel";
 
 export function NamespacesPage({ uid, tab }: { uid: string | null; tab: string | null }) {
@@ -53,6 +54,7 @@ function NamespaceDetail({ uid, requestedTab }: { uid: string; requestedTab: str
       {tab === "overview" && <DetailSection title="Overview"><Facts items={[{ label: "Name", value: detail.name }, { label: "Description", value: display(detail.description) }, { label: "Namespace UID", value: detail.uid }, { label: "Relational tables", value: detail.relational_table_count ?? 0 }, { label: "Time-indexed tables", value: detail.time_index_table_count ?? 0 }, { label: "Created", value: formatDate(detail.created_at) }, { label: "Visibility", value: display(detail.visibility) }]} /></DetailSection>}
       {tab === "tables" && <NamespaceTables uid={uid} />}
       {tab === "permissions" && <PermissionsPanel embedded resourceUid={uid} requestKey={`namespace-permissions-${uid}`} load={signal => metaTablesApi.namespacePermissions(uid, signal)} save={(value, revision) => metaTablesApi.saveNamespacePermissions(uid, value, revision)} namespace />}
+      {tab === "access-map" && <AccessMapTab uid={uid} />}
     </>}
   </DetailView>;
 }

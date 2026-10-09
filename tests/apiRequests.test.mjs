@@ -266,6 +266,30 @@ test("table updates use the published output-table filter and pipeline endpoint"
   assert.deepEqual(await pending, graph);
 });
 
+test("the signed-in user comes from the API's admitted caller", async () => {
+  const calls = transport();
+  const pending = api.caller();
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/caller/");
+  const caller = { user_uid: "ada", name: "Ada", email: null, identity_type: "person", is_admin: false, teams: [], identified_by: "caller_assertion" };
+  calls[0].respond(caller);
+  assert.deepEqual(await pending, caller);
+});
+
+test("a namespace's access map asks for relationships only when they are shown", async () => {
+  const calls = transport();
+  const plain = api.namespaceAccessMap("prices", false);
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/namespaces/prices/access-map/");
+  calls[0].respond({ tables: [] });
+  await plain;
+  const related = api.namespaceAccessMap("prices", true);
+  await Promise.resolve();
+  assert.equal(calls[1].path, "/namespaces/prices/access-map/?relationships=true");
+  calls[1].respond({ tables: [] });
+  await related;
+});
+
 test("the ULM request retains column endpoints and identity needed by the schema explorer", async () => {
   const calls = transport();
   const pending = api.tableSchemaGraph("daily-return", 3, true);

@@ -23,6 +23,7 @@ export const namespaceDetailTabs: readonly ResourceDetailTabDefinition<Namespace
   { id: "overview", label: "Overview" },
   { id: "tables", label: "Tables" },
   { id: "permissions", label: "Access" },
+  { id: "access-map", label: "Access map" },
 ];
 
 export const sourceDetailTabs: readonly ResourceDetailTabDefinition<SourceRecord>[] = [

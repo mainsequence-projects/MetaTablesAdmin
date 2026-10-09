@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiErrorDetail, schemaGraphRecord, tableQuery, tableRecord, updateRecord, updateRunRecord } from "../src/apiContract.ts";
+import { apiErrorDetail, callerMatch, schemaGraphRecord, tableQuery, tableRecord, updateRecord, updateRunRecord } from "../src/apiContract.ts";
 
 test("database validation failures and field errors retain useful API messages", () => {
   assert.equal(apiErrorDetail("Install the mssql driver dependencies on the MetaTables API server."),
@@ -96,4 +96,10 @@ test("catalog runs retain lifecycle, duration and actor without confusing execut
   assert.equal(updateRunRecord({ uid: "run", update_time_start: "2026-09-29T10:00:00Z", error_on_update: false }).result, "unfinished");
   assert.equal(updateRunRecord({ uid: "run", update_time_start: "2026-09-29T10:00:00Z", error_on_update: true }).result, "unfinished");
   assert.equal(updateRunRecord({ uid: "run", update_time_start: "2026-09-29T10:00:00Z", update_time_end: "2026-09-29T10:00:01Z", error_on_update: true }).result, "error");
+});
+
+test("the admitted caller is verified only against a Command Center user", () => {
+  assert.equal(callerMatch({ user_uid: "ada" }, "ada"), true);
+  assert.equal(callerMatch({ user_uid: "ada" }, "bob"), false);
+  assert.equal(callerMatch({ user_uid: "ada" }, null), null);
 });
