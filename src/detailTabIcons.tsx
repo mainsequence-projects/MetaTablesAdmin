@@ -1,4 +1,4 @@
-import { AlignLeft, CalendarClock, ChartNoAxesCombined, Clock3, Code2, FileText, History, LayoutDashboard, Network, ScrollText, ShieldCheck, Table2, type LucideIcon } from "lucide-react";
+import { AlignLeft, CalendarClock, ChartNoAxesCombined, Clock3, Code2, FileText, History, LayoutDashboard, Network, ScrollText, ShieldCheck, Table2, Waypoints, type LucideIcon } from "lucide-react";
 
 const tabIcons: Record<string, LucideIcon> = {
   details: FileText,
@@ -10,6 +10,7 @@ const tabIcons: Record<string, LucideIcon> = {
   updates: History,
   policies: Clock3,
   permissions: ShieldCheck,
+  "access-map": Waypoints,
   graphs: Network,
   "historical-updates": History,
   logs: ScrollText,

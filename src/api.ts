@@ -4,6 +4,7 @@ import { StaticSiteFastApiCredentialError } from "@dev-mainsequence/command-cent
 import { apiErrorDetail, schemaGraphRecord, tableQuery, tableRecord, updateRecord, updateRunRecord, type SchemaGraphApi, type TableApiRecord, type UpdateApiRecord } from "./apiContract";
 import { InFlightReads } from "./inFlightReads";
 import type { PipelineDirection, UpdatePipeline, HistoricalRunGraph } from "./updatePipeline";
+import type { AccessMapPayload } from "./accessMap";
 
 export type Page<T> = {
   count: number;
@@ -604,5 +605,6 @@ export const metaTablesApi = {
   namespace: (uid: string, signal?: AbortSignal) => request<NamespaceRecord>("GET", `namespaces/${encodeURIComponent(uid)}/`, { signal }),
   namespaceTables: async (uid: string, query: Record<string, string | number | undefined>, signal?: AbortSignal) => mapPage(page<TableApiRecord>(await request("GET", `namespaces/${encodeURIComponent(uid)}/tables/`, { query, signal })), tableRecord),
   namespacePermissions: (uid: string, signal?: AbortSignal) => request<PermissionsDocument>("GET", `namespaces/${encodeURIComponent(uid)}/permissions`, { signal }),
+  namespaceAccessMap: (uid: string, relationships: boolean, signal?: AbortSignal) => request<AccessMapPayload>("GET", `namespaces/${encodeURIComponent(uid)}/access-map/`, { query: { relationships: relationships || undefined }, signal }),
   saveNamespacePermissions: (uid: string, assignments: PermissionAssignments, revision: string) => request<PermissionsDocument>("PUT", `namespaces/${encodeURIComponent(uid)}/permissions`, { body: { assignments, revision } }),
 };

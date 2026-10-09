@@ -18,6 +18,12 @@ Choose **MetaTables → Catalog → Namespaces**, or <a href="/namespaces">open 
 - Search for a namespace and open its **Overview**.
 - Use **Tables** to browse its tables and filter by type.
 - Review **Access** to understand namespace sharing.
+- Open **Access map** to see who reaches the namespace's tables: users and
+  workloads, the Teams they belong to, the Reader and Writer grants on the
+  namespace and on each table, and the tables themselves. Select any box to
+  highlight everything it reaches and everything that reaches it. Turn on
+  **Relationships** to add foreign keys and updater inputs to tables in other
+  namespaces.
 - Admins manage namespace access and can create namespaces in [Security](../../../admin/administration/security/index.md).
 
 ## Common tasks
