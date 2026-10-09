@@ -266,6 +266,16 @@ test("table updates use the published output-table filter and pipeline endpoint"
   assert.deepEqual(await pending, graph);
 });
 
+test("the signed-in user comes from the API's admitted caller", async () => {
+  const calls = transport();
+  const pending = api.caller();
+  await Promise.resolve();
+  assert.equal(calls[0].path, "/caller/");
+  const caller = { user_uid: "ada", name: "Ada", email: null, identity_type: "person", is_admin: false, teams: [], identified_by: "caller_assertion" };
+  calls[0].respond(caller);
+  assert.deepEqual(await pending, caller);
+});
+
 test("a namespace's access map asks for relationships only when they are shown", async () => {
   const calls = transport();
   const plain = api.namespaceAccessMap("prices", false);

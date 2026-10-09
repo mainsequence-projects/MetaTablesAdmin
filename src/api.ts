@@ -246,6 +246,12 @@ export type PermissionAssignments = {
   edit: { users: string[]; teams: string[] };
 };
 export type GrantContribution = { grant_uid: string; source: "direct" | "namespace"; namespace_uid: string | null; principal_kind: "user" | "team"; principal_uid: string; access_level: "reader" | "writer" };
+/** `GET /caller/`: the User the API admitted for the request, named as that User sees the directory. */
+export type AdmittedCaller = {
+  user_uid: string; name: string | null; email: string | null; identity_type: "person" | "workload" | null;
+  is_admin: boolean; teams: { uid: string; name: string | null }[];
+  identified_by: "caller_assertion" | "local_sdk_session" | "developer_sdk_session";
+};
 export type AccessPreview = { user_uid: string; effective_access: "reader" | "writer" | null; remaining_access: "reader" | "writer" | null; contributions: GrantContribution[]; remaining_contributions: GrantContribution[]; unreadable_team_uids?: string[] };
 export type AccessEvent = { uid: string; actor_user_uid: string | null; principal_kind: string; principal_uid: string; previous_access: string | null; new_access: string | null; created_at: string; reason: string };
 export type PermissionsDocument = {
@@ -536,6 +542,7 @@ export const metaTablesApi = {
     }
     return context;
   },
+  caller: (signal?: AbortSignal) => request<AdmittedCaller>("GET", "caller/", { signal }),
   sources: (search: string, offset: number, signal?: AbortSignal, limit = 25) => request<Page<SourceRecord>>("GET", "data-sources/", { query: { search, limit, offset }, signal }),
   sourceSummary: (uid: string, signal?: AbortSignal) => request<SourceSummary>("GET", `data-sources/${encodeURIComponent(uid)}/summary/`, { signal }),
   source: (uid: string, signal?: AbortSignal) => request<SourceRecord>("GET", `data-sources/${encodeURIComponent(uid)}/`, { signal }),

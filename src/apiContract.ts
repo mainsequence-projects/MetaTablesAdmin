@@ -188,3 +188,8 @@ export function updateRunRecord(row: {
     graph_availability: row.graph_availability, outcome: row.outcome, job_run_uid: row.job_run_uid,
     trace_id: row.trace_id, actor_uid: row.updated_by_user_uid };
 }
+
+/** Whether the API's admitted User is the one Command Center says is signed in; null when there is no host to compare. */
+export function callerMatch(caller: { user_uid: string }, hostUserUid: string | null) {
+  return hostUserUid ? caller.user_uid === hostUserUid : null;
+}

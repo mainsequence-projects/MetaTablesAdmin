@@ -1,0 +1,50 @@
+/* The signed-in user as the API admitted it, at the top right of every page. */
+.mt-caller {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.mt-caller__pending { color: var(--muted-foreground); font-size: var(--font-size-body-xs); }
+.mt-caller__box { position: relative; max-width: 100%; }
+.mt-caller__box > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  min-height: 2rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: var(--font-size-body-xs);
+  cursor: pointer;
+  list-style: none;
+}
+.mt-caller__box > summary::-webkit-details-marker { display: none; }
+.mt-caller__box > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.mt-caller__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--font-weight-semibold); }
+.mt-caller__chevron { flex: none; color: var(--muted-foreground); transition: transform 160ms ease; }
+.mt-caller__box[open] .mt-caller__chevron { transform: rotate(180deg); }
+.mt-caller__panel {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 0.5rem;
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-picker);
+  font-size: var(--font-size-body-xs);
+}
+.mt-caller__heading { color: var(--muted-foreground); }
+.mt-caller__facts { display: grid; gap: 0.375rem; margin: 0; }
+.mt-caller__facts > div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); align-items: baseline; gap: 0.5rem; }
+.mt-caller__facts dt { color: var(--muted-foreground); }
+.mt-caller__facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.mt-caller__mono { font-family: var(--font-mono); }
+@media (prefers-reduced-motion: reduce) { .mt-caller__chevron { transition: none; } }

@@ -21,6 +21,7 @@ import { DataSourcesPage } from "./pages/DataSourcesPage";
 import { TablesPage } from "./pages/TablesPage";
 import { SecurityPage } from "./pages/SecurityPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { CallerIdentity } from "./CallerIdentity";
 import { DataSourceConfigurationError, RuntimeContextProvider, useRuntimeContext } from "./runtimeContext";
 
 type PageResource = Resource;
@@ -168,6 +169,7 @@ function AuthorizedApplication({ assistant }: { assistant?: AssistantSetup }) {
   }
 
   const content = <ApplicationPage as="main" maxWidth="full" className="metatables-page">
+    <CallerIdentity hostUserUid={assistant?.host.userUid ?? null} />
     <Routes>
       <Route path="/" element={<Navigate replace to="/tables" />} />
       <Route path="/settings" element={<LegacyRouteRedirect to={adminPaths.settings} />} />
