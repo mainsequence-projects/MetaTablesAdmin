@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { matchPath, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createStaticSiteIframeClient, type StaticSiteIframeClient } from "@dev-mainsequence/command-center-sdk/embed";
 import { ApplicationStatusScreen } from "@dev-mainsequence/command-center-sdk/feedback";
@@ -12,6 +13,7 @@ import {
 import { applyThemePresetToRoot, mainSequenceTheme, quartzLightTheme, resolveCommandCenterThemeById } from "@dev-mainsequence/command-center-sdk/theme";
 import { setHostedMetaTablesTransport } from "./api";
 import { ASSISTANT_NAME, assistantConfiguration, hostedAssistant, isAssistantPath } from "./assistant/config";
+import { useAssistantRoutes, useDockedRail } from "./assistant/routes";
 import { adminNavigation, metatablesNavigation, navigationApplications, userGuideNavigation } from "./metatablesNavigation";
 import { adminPaths, resourceForPath, resourceLabels, type Resource } from "./navigation";
 import { DataUpdatesPage } from "./pages/DataUpdatesPage";
@@ -148,6 +150,10 @@ function AuthorizedApplication({ assistant }: { assistant?: AssistantSetup }) {
   const [openApplicationId, setOpenApplicationId] = useState<string | null>(activeApplicationId);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const assistantRoute = isAssistantPath(location.pathname);
+  const assistantRoutes = useAssistantRoutes();
+  const dockedRail = useDockedRail();
+  const [assistantPageSlot, setAssistantPageSlot] = useState<HTMLElement | null>(null);
+  const [assistantRailSlot, setAssistantRailSlot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     setOpenApplicationId(activeApplicationId);
@@ -229,15 +235,25 @@ function AuthorizedApplication({ assistant }: { assistant?: AssistantSetup }) {
     {page}
   </ApplicationNavigationShell>;
 
-  if (!assistant) return renderShell(content);
-  // The MetaTables Analyst reads as the person it serves, so every person gets the assistant.
-  const assistantConfig = assistantConfiguration(assistant.launch.embedded, assistant.launch.search, hostedAssistant(runtime));
-  return <Suspense fallback={renderShell(assistantRoute
-    ? <ApplicationStatusScreen variant="contained" state="loading" title="Preparing the assistant" message={`Loading the ${ASSISTANT_NAME}.`} />
-    : content)}>
-    <AssistantExperience config={assistantConfig} hostClient={assistant.host.client} hostUserUid={assistant.host.userUid}
-      runtimeUserUid={runtime.user_uid ?? null} normalContent={content} renderShell={renderShell} />
-  </Suspense>;
+  // The page keeps one place in the tree whatever the assistant does: loading its module, connecting,
+  // or opening its rail never remounts the page or refetches its data. The assistant draws into slots.
+  const railShown = assistantRoutes.railOpen && !assistantRoutes.expanded;
+  const slots = { page: assistantRoute ? assistantPageSlot : null, rail: assistantRailSlot };
+  return <>
+    <div className={`metatables-assistant-layout${railShown && dockedRail ? " metatables-assistant-layout--rail" : ""}`}>
+      <div className="metatables-assistant-layout__app">
+        {renderShell(assistant && assistantRoute ? <div ref={setAssistantPageSlot} className="metatables-assistant-slot" /> : content)}
+      </div>
+      <div ref={setAssistantRailSlot} className="metatables-assistant-slot" />
+    </div>
+    {/* The MetaTables Analyst reads as the person it serves, so every person gets the assistant. */}
+    {assistant && <Suspense fallback={slots.page && createPortal(<ApplicationStatusScreen variant="contained" state="loading"
+      title="Preparing the assistant" message={`Loading the ${ASSISTANT_NAME}.`} />, slots.page)}>
+      <AssistantExperience config={assistantConfiguration(assistant.launch.embedded, assistant.launch.search, hostedAssistant(runtime))}
+        hostClient={assistant.host.client} hostUserUid={assistant.host.userUid} runtimeUserUid={runtime.user_uid ?? null}
+        routes={assistantRoutes} docked={dockedRail} slots={slots} />
+    </Suspense>}
+  </>;
 }
 
 export default function App() {

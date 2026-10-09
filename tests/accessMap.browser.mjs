@@ -53,6 +53,7 @@ try {
     const context = await browser.newContext({ viewport: { width, height: width === 375 ? 812 : 900 }, hasTouch: width === 375, isMobile: width === 375 });
     const page = await context.newPage();
     const requests = [];
+    let namespaceReads = 0;
     await page.route('**/api/**', async route => {
       const request = new URL(route.request().url()), path = request.pathname;
       let result;
@@ -60,7 +61,7 @@ try {
         data_source: { uid: ns, display_name: 'Local', class_type: 'sqlite', status: 'AVAILABLE', storage_access_mode: 'read_write' }, data_source_error: null,
         bootstrap: { active: true }, dialect: 'sqlite', paramstyle: 'named', default_schema: 'public' };
       else if (path.endsWith(`/namespaces/${ns}/access-map/`)) { requests.push(request.search); result = accessMap(request.searchParams.get('relationships') === 'true'); }
-      else if (path.endsWith(`/namespaces/${ns}/`)) result = { uid: ns, name: 'prices', description: 'Prices application', created_at: '2026-10-09T00:00:00Z', relational_table_count: 2, time_index_table_count: 1 };
+      else if (path.endsWith(`/namespaces/${ns}/`)) namespaceReads++, result = { uid: ns, name: 'prices', description: 'Prices application', created_at: '2026-10-09T00:00:00Z', relational_table_count: 2, time_index_table_count: 1 };
       else result = { count: 0, results: [] };
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
     });
@@ -84,10 +85,7 @@ try {
       await context.close();
       continue;
     }
-    // Scrolling the namespace page remounts its detail view; let it settle before selecting.
     await canvas.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(800);
-    await canvas.getByText('prices.daily_close', { exact: true }).waitFor();
     // Selecting a table explains every grant that reaches it.
     await canvas.getByText('prices.daily_close', { exact: true }).click();
     await page.getByText('Writer: prices-development (namespace grant)', { exact: true }).waitFor();
@@ -99,7 +97,9 @@ try {
     await page.getByText('Reader on namespace prices through trading-development', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Relationships', exact: true }).click();
     await canvas.getByText('trading.orders', { exact: true }).waitFor();
-    assert.equal(requests.at(-1), '?relationships=true');
+    // Scrolling, loading the assistant and selecting never remount the view: one read each, plus the toggle.
+    assert.equal(namespaceReads, 1, 'the namespace is read once');
+    assert.deepEqual(requests, ['', '?relationships=true']);
     await canvas.getByText('prices.intraday', { exact: true }).click();
     await page.getByText('Feeds the updater of trading.orders', { exact: true }).waitFor();
     assert.equal(await page.getByRole('link', { name: 'Open table', exact: true }).getAttribute('href'), '/time-index-meta-tables/intraday');

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
   ChatEngineProvider,
   ChatLauncher,
@@ -20,7 +21,8 @@ import { Button } from "@dev-mainsequence/command-center-sdk/controls";
 import type { StaticSiteIframeClient } from "@dev-mainsequence/command-center-sdk/embed";
 import { ApplicationStatusScreen } from "@dev-mainsequence/command-center-sdk/feedback";
 import { ApplicationPageHeader, ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
-import { ASSISTANT_NAME, ASSISTANT_PATH, ASSISTANT_PROVIDERS_PATH, isAssistantPath, type AssistantConfiguration } from "./config";
+import { ASSISTANT_NAME, ASSISTANT_PATH, type AssistantConfiguration } from "./config";
+import type { AssistantRoutes } from "./routes";
 
 export interface AssistantExperienceProps {
   config: AssistantConfiguration;
@@ -30,8 +32,15 @@ export interface AssistantExperienceProps {
   hostUserUid: string | null;
   /** The person the MetaTables API serves. */
   runtimeUserUid: string | null;
-  normalContent: ReactNode;
-  renderShell: (content: ReactNode) => ReactNode;
+  routes: AssistantRoutes;
+  /** Whether the open rail docks beside the application rather than floating over it. */
+  docked: boolean;
+  /**
+   * Where the assistant draws inside the application's layout: the page slot in the shell, present
+   * only at `/assistant`, and the rail slot beside the shell. The application's own page is never
+   * the assistant's child, so loading the assistant never remounts it.
+   */
+  slots: { page: HTMLElement | null; rail: HTMLElement | null };
 }
 
 const copy: Partial<ChatThreadCopy> = {
@@ -41,101 +50,8 @@ const copy: Partial<ChatThreadCopy> = {
   disclaimer: `The ${ASSISTANT_NAME} can make mistakes. Verify important outputs before acting.`,
 };
 
-const DEFAULT_RETURN_LOCATION = "/tables";
 // The person the scripted stand-in serves by default.
 const STAND_IN_USER_UID = "00000000-0000-4000-8000-000000000001";
-// The rail docks beside the application from this width and floats over it below.
-const DOCKED_RAIL_QUERY = "(min-width: 1400px)";
-
-function requestedSession(search: string): string | null {
-  return new URLSearchParams(search).get("session");
-}
-
-function useDockedRail() {
-  const [docked, setDocked] = useState(() => window.matchMedia(DOCKED_RAIL_QUERY).matches);
-  useEffect(() => {
-    const query = window.matchMedia(DOCKED_RAIL_QUERY);
-    const update = () => setDocked(query.matches);
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  return docked;
-}
-
-/** Where the assistant is on screen: the rail beside a page, or the expanded rail at `/assistant`. */
-function useAssistantRoutes() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const here = location.pathname + location.search + location.hash;
-  const expanded = isAssistantPath(location.pathname);
-  const providers = location.pathname === ASSISTANT_PROVIDERS_PATH;
-  const [railOpen, setRailOpen] = useState(false);
-  const [returnLocation, setReturnLocation] = useState(DEFAULT_RETURN_LOCATION);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(() =>
-    location.pathname === ASSISTANT_PATH ? requestedSession(location.search) : null);
-  // While New session starts one, the session that was on screen; undefined otherwise.
-  const [creatingFrom, setCreatingFrom] = useState<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    if (expanded) setRailOpen(false);
-    else setReturnLocation(here);
-    if (location.pathname === ASSISTANT_PATH) setSelectedSessionId(requestedSession(location.search));
-  }, [expanded, here, location.pathname, location.search]);
-
-  const sessionPath = (sessionId: string | null) =>
-    sessionId ? `${ASSISTANT_PATH}?session=${encodeURIComponent(sessionId)}` : ASSISTANT_PATH;
-  const openSession = (sessionId: string) => {
-    setCreatingFrom(undefined);
-    setSelectedSessionId(sessionId);
-    navigate(sessionPath(sessionId));
-  };
-
-  return {
-    expanded,
-    providers,
-    path: here,
-    railOpen,
-    returnLocation,
-    selectedSessionId,
-    creatingFrom,
-    // As in Command Center: the rail and a bare `/assistant` show the default session, which the
-    // engine pins to its handle; `?session=` and a session New session started show their own.
-    showsDefaultSession: railOpen || (expanded && !selectedSessionId && creatingFrom === undefined),
-    requestedSessionId: expanded ? selectedSessionId : null,
-    openRail: () => {
-      if (expanded) navigate(returnLocation);
-      setRailOpen(true);
-    },
-    closeRail: () => setRailOpen(false),
-    expand: (sessionId: string | null) => {
-      setSelectedSessionId(sessionId);
-      setRailOpen(false);
-      navigate(sessionPath(sessionId));
-    },
-    minimize: () => {
-      navigate(isAssistantPath(new URL(returnLocation, window.location.origin).pathname) ? DEFAULT_RETURN_LOCATION : returnLocation);
-      setRailOpen(true);
-    },
-    openSession,
-    // New session: leave the default session so the engine keeps the one it starts.
-    startNewSession: (currentSessionId: string | null) => {
-      setCreatingFrom(currentSessionId);
-      setSelectedSessionId(null);
-      navigate(ASSISTANT_PATH, { replace: true });
-    },
-    dropSession: () => {
-      setSelectedSessionId(null);
-      if (expanded) navigate(ASSISTANT_PATH, { replace: true });
-    },
-    openConversation: () => navigate(sessionPath(selectedSessionId)),
-    openProviders: () => {
-      setRailOpen(false);
-      navigate(ASSISTANT_PROVIDERS_PATH);
-    },
-  };
-}
-
-type AssistantRoutes = ReturnType<typeof useAssistantRoutes>;
 
 function useNotice() {
   const [notice, setNotice] = useState<ChatNotice | null>(null);
@@ -167,29 +83,27 @@ export function AssistantExperience(props: AssistantExperienceProps) {
 }
 
 /** Without an Agent the page shows no launcher; the expanded rail's route says why. */
-function UnavailableAssistantExperience({ message, normalContent, renderShell }: AssistantExperienceProps & { message: string }) {
-  const { pathname } = useLocation();
+function UnavailableAssistantExperience({ message, slots }: AssistantExperienceProps & { message: string }) {
   useEffect(() => { if (import.meta.env.DEV) console.info(message); }, [message]);
-  return renderShell(isAssistantPath(pathname) ? <AssistantUnavailable message={message} /> : normalContent);
+  return slots.page && createPortal(<AssistantUnavailable message={message} />, slots.page);
 }
 
 /**
  * The rail, the launcher, and the expanded rail, all Command Center AI's, over whichever engine is
  * mounted: the platform's Analyst or an `ms-tau` Agent on this machine.
  */
-function AssistantSurfaces({ agents, normalContent, notice, onOpenProviders, providersPage, renderShell, routes, viewer }: {
+function AssistantSurfaces({ agents, docked, notice, onOpenProviders, providersPage, routes, slots, viewer }: {
   agents?: AgentSessionExplorerAgent[];
-  normalContent: ReactNode;
+  docked: boolean;
   notice: ChatNotice | null;
   /** Absent for a source without provider settings. */
   onOpenProviders?: () => void;
   providersPage?: ReactNode;
-  renderShell: (content: ReactNode) => ReactNode;
   routes: AssistantRoutes;
+  slots: AssistantExperienceProps["slots"];
   viewer: ChatViewer;
 }) {
   const engine = useChatEngine();
-  const docked = useDockedRail();
   const railShown = routes.railOpen && !routes.expanded;
   const { creatingFrom, openSession } = routes;
 
@@ -212,18 +126,16 @@ function AssistantSurfaces({ agents, normalContent, notice, onOpenProviders, pro
       </div>;
 
   return <>
-    <div className={`metatables-assistant-layout${railShown && docked ? " metatables-assistant-layout--rail" : ""}`}>
-      <div className="metatables-assistant-layout__app">{renderShell(routes.expanded ? page : normalContent)}</div>
-      {railShown && <ChatRail
-        title={ASSISTANT_NAME}
-        subtitle="Finds, explains and queries MetaTables, read-only."
-        mode={docked ? "docked" : "overlay"}
-        onExpand={() => routes.expand(engine.isDefaultSession ? null : engine.currentSessionId)}
-        onClose={routes.closeRail}
-      >
-        <ChatThread copy={copy} surface="overlay" viewer={viewer} onOpenModelProviderSettings={onOpenProviders} />
-      </ChatRail>}
-    </div>
+    {slots.page && createPortal(page, slots.page)}
+    {railShown && slots.rail && createPortal(<ChatRail
+      title={ASSISTANT_NAME}
+      subtitle="Finds, explains and queries MetaTables, read-only."
+      mode={docked ? "docked" : "overlay"}
+      onExpand={() => routes.expand(engine.isDefaultSession ? null : engine.currentSessionId)}
+      onClose={routes.closeRail}
+    >
+      <ChatThread copy={copy} surface="overlay" viewer={viewer} onOpenModelProviderSettings={onOpenProviders} />
+    </ChatRail>, slots.rail)}
     {!routes.expanded && !routes.railOpen && <ChatLauncher label={`Ask the ${ASSISTANT_NAME}`} onClick={routes.openRail} />}
     <AssistantNotice notice={notice} />
   </>;
@@ -234,8 +146,7 @@ function AssistantSurfaces({ agents, normalContent, notice, onOpenProviders, pro
  * server forwards `basePath` to it with the SDK's `localAgentProxy()`; there is no platform session,
  * and the Agent acts as the developer who started it.
  */
-function LocalAssistantExperience({ basePath, normalContent, renderShell, runtimeUserUid }: AssistantExperienceProps & { basePath: string }) {
-  const routes = useAssistantRoutes();
+function LocalAssistantExperience({ basePath, docked, routes, runtimeUserUid, slots }: AssistantExperienceProps & { basePath: string }) {
   const navigate = useNavigate();
   const [notice, setNotice] = useNotice();
   const source = useMemo(() => createLocalAgentSource({ baseUrl: basePath, displayName: ASSISTANT_NAME, userUid: runtimeUserUid }),
@@ -253,10 +164,10 @@ function LocalAssistantExperience({ basePath, normalContent, renderShell, runtim
     viewContext={{ application: "metatables-admin", path: routes.expanded ? routes.returnLocation : routes.path }}
   >
     <AssistantSurfaces
-      normalContent={normalContent}
+      docked={docked}
       notice={notice}
-      renderShell={renderShell}
       routes={routes}
+      slots={slots}
       viewer={{ uid: runtimeUserUid ?? undefined }}
     />
   </ChatEngineProvider>;
@@ -301,8 +212,7 @@ function usePlatformIdentity(sender: "host" | "local-proxy" | "stand-in", hostUs
 }
 
 function PlatformAssistantExperience(props: AssistantExperienceProps & { config: Extract<AssistantConfiguration, { mode: "platform" }> }) {
-  const { config, hostClient, hostUserUid, normalContent, renderShell, runtimeUserUid } = props;
-  const routes = useAssistantRoutes();
+  const { config, docked, hostClient, hostUserUid, routes, runtimeUserUid, slots } = props;
   const [notice, setNotice] = useNotice();
   const { identity, retry } = usePlatformIdentity(config.sender, hostUserUid, runtimeUserUid);
   const auth = useMemo<ChatAuth>(() => ({ userUid: identity.uid ?? "" }), [identity.uid]);
@@ -340,7 +250,7 @@ function PlatformAssistantExperience(props: AssistantExperienceProps & { config:
     const blocked = identity.error
       ? <AssistantUnavailable message={identity.error} retry={retry} />
       : <ApplicationStatusScreen variant="contained" state="loading" title="Connecting to the assistant" message="Checking who is signed in." />;
-    return <>{renderShell(routes.expanded ? blocked : normalContent)}<AssistantNotice notice={notice} /></>;
+    return <>{slots.page && createPortal(blocked, slots.page)}<AssistantNotice notice={notice} /></>;
   }
 
   const providersPage = <ApplicationPageStack className="metatables-assistant-providers">
@@ -367,12 +277,12 @@ function PlatformAssistantExperience(props: AssistantExperienceProps & { config:
   >
     <AssistantSurfaces
       agents={agents}
-      normalContent={normalContent}
+      docked={docked}
       notice={notice}
       onOpenProviders={routes.openProviders}
       providersPage={providersPage}
-      renderShell={renderShell}
       routes={routes}
+      slots={slots}
       viewer={{ uid: identity.uid }}
     />
   </ChatEngineProvider>;
