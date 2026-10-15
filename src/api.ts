@@ -490,11 +490,25 @@ export type DatabasePermissionStatus = {
   data_source_name: string;
   engine: string;
   enforcement: "sqlite_authorizer" | "database_roles";
+  last_check?: SecurityCheck | null;
   active_tables: number;
   covered_tables: number;
   missing_policies: number;
   tables: { uid: string; name: string; schema: string | null; policy_present: boolean; writes_supported: boolean }[];
 };
+/** The last full security check: daily, or run by an admin (MetaTables ADR 0023). */
+export type SecurityCheck = {
+  trigger: "schedule" | "admin";
+  outcome: "running" | "passed" | "repaired" | "failed";
+  started_at: string;
+  finished_at?: string;
+  statements?: number;
+  error?: string;
+};
+/** Hosted starts the check Job; Local runs the check in the request. */
+export type SecurityCheckRun =
+  | { status: "started"; job_uid: string; requested_at: string }
+  | { status: "finished"; last_check: SecurityCheck };
 export type SourceQueryResult = {
   ok: boolean; results: Record<string, unknown>[]; row_count: number;
   truncated: boolean; max_rows: number; error: string | null;
@@ -591,7 +605,7 @@ export const metaTablesApi = {
   securityResources: (search: string, offset: number, signal?: AbortSignal) => request<{ tables: Principal[]; namespaces: Principal[] }>("GET", "security/resources/", { query: { search, offset }, signal }),
   createSecurityNamespace: (name: string) => request<Principal>("POST", "security/namespaces/", { body: { name } }),
   databasePermissionStatus: (signal?: AbortSignal) => request<DatabasePermissionStatus>("GET", "security/database-permissions/", { signal }),
-  reconcilePermissions: () => request<{ ok: boolean; data_source_uid: string }>("POST", "security/reconcile/"),
+  runSecurityCheck: () => request<SecurityCheckRun>("POST", "security/checks/"),
   searchPrincipals: (search: string, signal?: AbortSignal) => request<PrincipalSearch>("GET", "security/principals/", { query: { search }, signal }),
   effectiveAccess: (uid: string, userUid: string, withoutGrantUid?: string) => request<AccessPreview>("GET", `meta-tables/${encodeURIComponent(uid)}/effective-access/`, { query: { user_uid: userUid, without_grant_uid: withoutGrantUid } }),
   accessHistory: (uid: string, namespace = false) => request<AccessEvent[]>("GET", namespace ? "security/access-history/" : `meta-tables/${encodeURIComponent(uid)}/access-history/`, { query: namespace ? { kind: "namespace", uid } : undefined }),
