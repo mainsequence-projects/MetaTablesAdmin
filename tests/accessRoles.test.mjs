@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  canRevoke, grantableRoles, grantChange, parsePrincipalKey, principalDirectory, principalKey, principalName, revokeChange,
-  roleLabel, roleRank, sourceLabel, withFoundPrincipals, writesData,
+  canRevoke, grantableRoles, grantChange, managesCreator, parsePrincipalKey, principalDirectory, principalKey, principalName, revokeChange,
+  roleLabel, roleRank, sourceLabel, withFoundPrincipals, workloadName, writesData,
 } from "../src/accessRoles.ts";
 
 const texts = { summary: "s", impact: "i", not_included: "n" };
@@ -59,6 +59,20 @@ test("a role above the caller's, or owner for a workload, cannot be granted", ()
   assert.deepEqual(reasons("data_viewer", "user:bot"), { metadata_viewer: null, data_viewer: null, data_writer: "Above your own role", editor: "Above your own role", owner: "Above your own role" });
 });
 
+test("a manager of the creating workload holds no role yet grants any, owner only to people and Teams", () => {
+  const directory = principalDirectory({ users: [{ uid: "bot", name: "nightly (Job workload)", identity_type: "workload" }, { uid: "ana", name: "Ana", identity_type: "person" }],
+    teams: [{ uid: "research", name: "Research" }] });
+  const reasons = key => Object.fromEntries(grantableRoles(roles, null, directory.get(key), true).map(item => [item.definition.role, item.reason]));
+  assert.deepEqual(reasons("user:ana"), { metadata_viewer: null, data_viewer: null, data_writer: null, editor: null, owner: null });
+  assert.equal(reasons("team:research").owner, null);
+  assert.deepEqual(reasons("user:bot"), { metadata_viewer: null, data_viewer: null, data_writer: null, editor: null, owner: "Not for workload Users" });
+  // Without the manager source, no role caps every choice.
+  assert.ok(grantableRoles(roles, null, directory.get("user:ana")).every(item => item.reason === "Above your own role"));
+  const manager = { source: "manager", role: null, actions: ["namespaces.get", "namespaces.get_access", "namespaces.set_access"], workload_user_uid: "bot" };
+  assert.equal(managesCreator([{ source: "direct", role: "editor" }, manager]), true);
+  assert.equal(managesCreator([{ source: "admin", role: "owner" }]), false);
+});
+
 test("revoking: managers revoke direct bindings; anyone their own; a manager their workload's", () => {
   const directory = principalDirectory({ users: [{ uid: "bot", name: "bot", identity_type: "workload", managed_by_caller: true }, { uid: "bob", name: "Bob" }], teams: [] });
   const binding = (principal_uid, source = "direct", principal_kind = "user") => ({ principal_kind, principal_uid, source });
@@ -85,4 +99,14 @@ test("sources say where access comes from", () => {
   assert.equal(sourceLabel({ source: "namespace", principal_kind: "team", principal_uid: "research" }, { directory, namespaceName: "prices" }),
     "Namespace prices through Team Research");
   assert.equal(sourceLabel({ source: "namespace", principal_kind: "user", principal_uid: "ana" }, { directory, namespaceName: "prices" }), "Namespace prices");
+});
+
+test("the creating workload is named from the directory, or by its UID when the caller cannot see it", () => {
+  const hidden = "5d3c9e1a-0b7f-4a52-9d1e-2f8a6c4b7e90";
+  const directory = principalDirectory({ users: [{ uid: "bot", name: "nightly (Job workload)", identity_type: "workload" }], teams: [] },
+    [{ principal_kind: "user", principal_uid: hidden }]);
+  assert.equal(workloadName(directory, "bot"), "nightly (Job workload)");
+  assert.equal(workloadName(directory, hidden), `Workload ${hidden}`);
+  assert.equal(sourceLabel({ source: "manager", role: null, workload_user_uid: "bot" }, { directory }), "Manages the creating workload, nightly (Job workload)");
+  assert.equal(sourceLabel({ source: "manager", role: null, workload_user_uid: hidden }, { directory }), `Manages the creating workload, Workload ${hidden}`);
 });

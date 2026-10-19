@@ -14,6 +14,7 @@ const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host',
 });
 const uid = '76bb5bc7-06b4-49b0-a45f-f3787e716ad5';
 const ns = '0d4c1a7e-5b2f-4c33-8f0e-1a2b3c4d5e6f';
+const managedNs = '9f1e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f';
 const user = '889cb532-3d40-4261-9921-352336237069';
 const otherUser = 'e2a4f38a-1b5f-40a3-974f-70bc8f065b3f';
 const worker = '3c0b6f1e-7f43-4b8e-9a51-5d2c1e9a0b77';
@@ -51,6 +52,15 @@ try {
       { uid: 'b1', source: 'direct', principal_kind: 'user', principal_uid: user, role: 'owner', granted_by_user_uid: user, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' },
       { uid: 'b2', source: 'direct', principal_kind: 'user', principal_uid: otherUser, role: 'data_viewer', granted_by_user_uid: user, created_at: '2026-10-02T00:00:00Z', updated_at: '2026-10-02T00:00:00Z' },
     ];
+    // A namespace the workload's registration created: the caller manages that workload and holds no role.
+    const managerSource = { source: 'manager', role: null, actions: ['namespaces.get', 'namespaces.get_access', 'namespaces.set_access'], workload_user_uid: worker };
+    let managedBindings = [{ uid: 'm1', source: 'direct', principal_kind: 'user', principal_uid: worker, role: 'editor', granted_by_user_uid: null,
+      created_at: '2026-10-19T00:00:00Z', updated_at: '2026-10-19T00:00:00Z' }];
+    const managerMe = () => ({ role: null, allowed_actions: managerSource.actions, sources: [managerSource], revision: 'managed-1' });
+    const managedDocument = () => ({ kind: 'namespace', uid: managedNs, revision: 'managed-1', can_manage: true, inherited: [], bindings: managedBindings,
+      me: managerMe(), created_by_workload_uid: worker, candidate_teams: [{ uid: research, name: 'Research' }],
+      candidate_users: [{ uid: user, name: 'Alice', email: 'alice@example.test', identity_type: 'person' }, { uid: otherUser, name: 'Bob', email: 'bob@example.test', identity_type: 'person' },
+        { ...workload, managed_by_caller: true }] });
     const inherited = [{ uid: 'b3', source: 'namespace', namespace_uid: ns, principal_kind: 'team', principal_uid: research, role: 'editor',
       granted_by_user_uid: null, created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' }];
     const me = () => ({ role: isAdmin ? 'owner' : role, allowed_actions: allowed(tableActions, isAdmin ? 'owner' : role), revision: 'revision-1',
@@ -101,7 +111,21 @@ try {
         assert.deepEqual(request.postDataJSON(), { name: 'crm', description: 'Customer data' });
         if (nameTaken) { status = 409; result = { detail: { code: 'namespace_name_taken', namespace: 'crm', owners: [{ principal_kind: 'user', principal_uid: otherUser }] } }; }
         else result = { uid: ns, name: 'crm', description: 'Customer data', created_at: '2026-10-19T00:00:00Z', relational_table_count: 0, time_index_table_count: 0 };
-      } else if (path.endsWith(`/namespaces/${ns}/access/me/`)) result = { role: 'owner', allowed_actions: allowed(namespaceActions, 'owner'), revision: 'ns-1',
+      } else if (path.endsWith(`/namespaces/${managedNs}/access/me/`)) result = managerMe();
+      else if (path.endsWith(`/namespaces/${managedNs}/access/changes/`)) {
+        const body = request.postDataJSON();
+        assert.equal(body.revision, 'managed-1');
+        changes.push(body);
+        for (const granted of body.grant) managedBindings = [...managedBindings.filter(item => item.principal_uid !== granted.principal_uid),
+          { uid: `m-${granted.principal_uid}`, source: 'direct', ...granted, granted_by_user_uid: user, created_at: '2026-10-19T00:00:00Z', updated_at: '2026-10-19T00:00:00Z' }];
+        result = managedDocument();
+      } else if (path.endsWith(`/namespaces/${managedNs}/access/explain/`)) {
+        const other = address.searchParams.get('user_uid') === otherUser, hidden = 'not shown for other Users';
+        result = { user_uid: other ? otherUser : user, action: address.searchParams.get('action'), allowed: !other, role: null, sources: other ? [] : [managerSource],
+          unreadable_team_uids: [], admin_status: other ? hidden : false, manager_status: other ? hidden : true };
+      } else if (path.endsWith(`/namespaces/${managedNs}/access/`)) result = managedDocument();
+      else if (path.endsWith(`/namespaces/${managedNs}/`)) result = { uid: managedNs, name: 'nightly-prices', description: '', created_at: '2026-10-19T00:00:00Z', relational_table_count: 0, time_index_table_count: 0 };
+      else if (path.endsWith(`/namespaces/${ns}/access/me/`)) result = { role: 'owner', allowed_actions: allowed(namespaceActions, 'owner'), revision: 'ns-1',
         sources: [{ uid: 'n1', grant_uid: 'n1', source: 'direct', principal_kind: 'user', principal_uid: user, role: 'owner' }] };
       else if (path.endsWith(`/namespaces/${ns}/access/`)) result = { kind: 'namespace', uid: ns, revision: 'ns-1', can_manage: true, inherited: [],
         bindings: [{ uid: 'n1', source: 'direct', principal_kind: 'user', principal_uid: user, role: 'owner', granted_by_user_uid: user, created_at: '2026-10-19T00:00:00Z', updated_at: '2026-10-19T00:00:00Z' }],
@@ -237,6 +261,35 @@ try {
     assert.equal(new URL(page.url()).pathname, `/namespaces/${ns}`);
     await page.getByText('owner summary for this namespace.', { exact: true }).first().waitFor();
 
+    // A manager of the workload that created a namespace holds no role, sees that workload and grants owner to a person.
+    await page.goto(`${url}/namespaces/${managedNs}?tab=permissions`);
+    await page.getByText('Your role: No role', { exact: true }).waitFor();
+    await page.getByText('Manages the creating workload, Job 8b1f (workload)', { exact: true }).waitFor();
+    await page.getByText(/^Created by the workload Job 8b1f \(workload\)\. The people who manage it decide who has access here/).waitFor();
+    await pick('Grant to', /^Bob/);
+    await page.locator('button[aria-label="Role to grant"]').click();
+    await page.getByRole('listbox', { name: 'Role to grant' }).getByRole('option', { name: /^Owner/ }).click();
+    await page.getByRole('button', { name: 'Review grant', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Grant role' }).click();
+    await page.getByText('Bob now holds Owner.', { exact: true }).waitFor();
+    assert.deepEqual(changes.at(-1), { revision: 'managed-1', grant: [{ principal_kind: 'user', principal_uid: otherUser, role: 'owner' }], revoke: [] });
+    // Owner is still never offered to a workload.
+    await pick('Grant to', /^Job 8b1f \(workload\)/);
+    await page.locator('button[aria-label="Role to grant"]').click();
+    assert.equal(await page.getByRole('listbox', { name: 'Role to grant' }).getByRole('option', { name: /^Owner/ }).isDisabled(), true);
+    await page.getByRole('listbox', { name: 'Role to grant' }).getByRole('option', { name: /^Editor/ }).click();
+    // Explain names the manager authority for the caller only.
+    await page.locator('summary').filter({ hasText: 'Explain access' }).click();
+    await pick('Action to explain', /^namespaces\.set_access/);
+    await page.getByRole('button', { name: 'Explain', exact: true }).click();
+    await page.getByText('You can namespaces.set_access', { exact: true }).waitFor();
+    await page.getByText('Manages the creating workload, Job 8b1f (workload): namespaces.get, namespaces.get_access, namespaces.set_access.', { exact: true }).waitFor();
+    await page.getByText('You manage the workload that created this namespace, which lets you see it and decide who has access to it.', { exact: true }).waitFor();
+    await pick('User to explain', /^Bob/);
+    await page.getByRole('button', { name: 'Explain', exact: true }).click();
+    await page.getByText('Bob cannot namespaces.set_access', { exact: true }).waitFor();
+    await page.getByText(/^Whether Bob manages the workload that created this namespace is not shown/).waitFor();
+
     // Security is administration only: no namespace creation or grant editing there.
     await page.goto(`${url}/settings`);
     await page.getByText('Admin access required', { exact: true }).waitFor();
@@ -257,5 +310,5 @@ try {
     assert.deepEqual(errors, []);
     await context.close();
   }
-  console.log('Security browser checks passed: role bindings, grants with texts, changes, revokes, revision conflicts, Explain, manager grants, data tabs, namespace creation, admin Security; light/dark at 375/1280.');
+  console.log('Security browser checks passed: role bindings, grants with texts, changes, revokes, revision conflicts, Explain, manager grants, data tabs, namespace creation, creating-workload managers, admin Security; light/dark at 375/1280.');
 } finally { await browser?.close(); vite.kill(); }

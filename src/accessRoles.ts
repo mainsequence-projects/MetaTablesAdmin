@@ -83,14 +83,28 @@ export function principalName(directory: ReadonlyMap<string, DirectoryEntry>, ki
 export const isWorkload = (entry: Pick<DirectoryEntry, "identity_type"> | undefined) => entry?.identity_type === "workload";
 
 /**
- * The roles the caller may grant to a principal: never above the caller's own role, and owner only
- * to people and Teams. `reason` says why a role is unavailable.
+ * A workload User as the directory names it ("nightly (Job workload)"); one the caller cannot see is
+ * named by its UID, as the API names a workload whose kind it cannot read.
  */
-export function grantableRoles(roles: readonly AccessRoleDefinition[], ownRole: AccessRole | null, principal: DirectoryEntry | undefined) {
+export function workloadName(directory: ReadonlyMap<string, DirectoryEntry>, uid: string) {
+  const entry = directory.get(principalKey("user", uid));
+  return entry?.available ? entry.name : `Workload ${uid}`;
+}
+
+/** Whether the caller manages the workload that created the namespace: they manage its access with no role. */
+export const managesCreator = (sources: readonly Pick<AccessSource, "source">[]) => sources.some(source => source.source === "manager");
+
+/**
+ * The roles the caller may grant to a principal: never above the caller's own role, unless they manage
+ * the namespace's creating workload, and owner only to people and Teams. `reason` says why a role is
+ * unavailable.
+ */
+export function grantableRoles(roles: readonly AccessRoleDefinition[], ownRole: AccessRole | null, principal: DirectoryEntry | undefined,
+  creatorManager = false) {
   const principalType = principal?.kind === "team" ? "team" : isWorkload(principal) ? "workload" : "user";
   return roles.map(definition => ({
     definition,
-    reason: roleRank(definition.role) > roleRank(ownRole) ? "Above your own role"
+    reason: !creatorManager && roleRank(definition.role) > roleRank(ownRole) ? "Above your own role"
       : principal && !definition.principals.includes(principalType) ? "Not for workload Users" : null,
   }));
 }
@@ -114,11 +128,15 @@ export function revokeChange(revision: string, principal: PrincipalRef): AccessC
   return { revision, grant: [], revoke: [{ principal_kind: principal.principal_kind, principal_uid: principal.principal_uid }] };
 }
 
-/** How a source gives access, in a short phrase: "Direct", "Team Research", "Namespace prices", "Organization admin". */
-export function sourceLabel(source: Pick<AccessSource, "source" | "principal_kind" | "principal_uid">, input: {
+/**
+ * How a source gives access, in a short phrase: "Direct", "Team Research", "Namespace prices", "Organization admin",
+ * "Manages the creating workload, nightly (Job workload)".
+ */
+export function sourceLabel(source: Pick<AccessSource, "source" | "principal_kind" | "principal_uid" | "workload_user_uid">, input: {
   directory: ReadonlyMap<string, DirectoryEntry>; namespaceName?: string | null;
 }) {
   if (source.source === "admin") return "Organization admin";
+  if (source.source === "manager") return `Manages the creating workload${source.workload_user_uid ? `, ${workloadName(input.directory, source.workload_user_uid)}` : ""}`;
   const through = source.principal_kind === "team" && source.principal_uid
     ? ` through Team ${principalName(input.directory, "team", source.principal_uid)}` : "";
   if (source.source === "namespace") return `Namespace${input.namespaceName ? ` ${input.namespaceName}` : ""}${through}`;

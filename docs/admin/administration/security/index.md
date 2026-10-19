@@ -21,7 +21,7 @@ To recover a table or namespace without an owner, open its Access panel and gran
 
 ## Understand what you see
 
-Organization admins hold every action on every namespace and table, reading and writing data included, without a role of their own. Owners manage access on each object’s Access tab. Namespace roles and Team membership also contribute to a user’s access.
+Organization admins hold every action on every namespace and table, reading and writing data included, without a role of their own. Owners manage access on each object’s Access tab; on a namespace a workload’s registration created, so do the people who manage that workload, without a role of their own. Namespace roles and Team membership also contribute to a user’s access.
 
 ## If something goes wrong
 
