@@ -19,7 +19,7 @@ Choose **MetaTables → Catalog → MetaTables**, or <a href="/tables">open Meta
 - Review **Details** and the formatted **Description**.
 - Explore relationships in **ULM diagram**. Use the graph controls to zoom, fit the diagram, and inspect a table.
 - For relational tables, use **Rows** to browse data.
-- Use **Access** to review sharing or change it when you are a Writer.
+- Use **Access** to see your role and where it comes from, and to grant roles when you are an owner.
 
 ## Common tasks
 

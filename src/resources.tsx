@@ -91,7 +91,7 @@ export const updatesResource = defineResourceApplication<DataUpdateRecord, strin
 export const namespacesResource = defineResourceApplication<NamespaceRecord, string>({
   id: "metatables-namespaces",
   label: "Namespaces",
-  description: "Logical groups of registered MetaTables and their permissions.",
+  description: "Access groups of registered MetaTables. A role on a namespace applies to every table in it.",
   itemLabel: "namespaces",
   getId: (namespace) => namespace.uid,
   adapter: {

@@ -3,6 +3,7 @@ import { Button, Field } from "@dev-mainsequence/command-center-sdk/controls";
 import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import { DataTable, ResourcePagination } from "@dev-mainsequence/command-center-sdk/views";
 import { metaTablesApi, type SourceRecord } from "../api";
+import { can } from "../accessRoles";
 import { DetailSection, display, Picker, RemoteContent, StatePanel, useDebounced, useRemote } from "../ui";
 
 export function RelationRows({ uid }: { uid: string }) {
@@ -27,7 +28,7 @@ export function RelationRows({ uid }: { uid: string }) {
       order_by: sort ? [{ column: sort, direction: direction as "asc" | "desc" }] : [] }, signal));
   const names = detail.status === "ready" ? detail.data.columns?.map(column => column.name) ?? [] : [];
   return <DetailSection title="Rows" description="Read-only preview. Choose an ordering for pagination; changing data or non-unique values can move between pages.">
-    {detail.status === "ready" && detail.data.management_mode === "external_registered" && detail.data.permissions?.write &&
+    {detail.status === "ready" && detail.data.management_mode === "external_registered" && can(detail.data.allowed_actions, "tables.update") &&
       <div><Button pending={refreshing} disabled={refreshing} onClick={() => void refresh()}>Refresh definition from source</Button></div>}
     {error && <StatePanel embedded tone="danger" title="Refresh failed">{error}</StatePanel>}
     <Field label="Columns"><Picker mode="multiple" ariaLabel="Columns" value={columns} options={names.map(name => ({ value: name, label: name }))}

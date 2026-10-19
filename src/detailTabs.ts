@@ -1,10 +1,13 @@
 import type { ResourceDetailTabDefinition } from "@dev-mainsequence/command-center-sdk/resource";
 import type { DataUpdateDetail, NamespaceRecord, SourceRecord, TableDetail } from "./api";
 
+// Rows and statistics read data: they need tables.get_data (data_viewer or above).
+const readsData = (table: TableDetail) => table.allowed_actions?.includes("tables.get_data") === true;
+
 export const tableDetailTabs: readonly ResourceDetailTabDefinition<TableDetail>[] = [
   { id: "details", label: "Details" },
-  { id: "rows", label: "Rows", isVisible: table => table.kind === "relational" },
-  { id: "stats", label: "Stats", isVisible: table => table.kind === "time_index" },
+  { id: "rows", label: "Rows", isVisible: table => table.kind === "relational" && readsData(table) },
+  { id: "stats", label: "Stats", isVisible: table => table.kind === "time_index" && readsData(table) },
   { id: "description", label: "Description" },
   { id: "ulm-diagram", label: "ULM diagram" },
   { id: "updates", label: "Updates", isVisible: table => table.kind === "time_index" },

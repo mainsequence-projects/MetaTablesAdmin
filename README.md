@@ -300,17 +300,17 @@ The SDK's pinned `0.5.10` skills are installed in `.agents/skills/command-center
 ## Security model
 
 The API supplies current User/Team access and admin facts. Settings, DataSource
-management, and global Security require Organization admin. Table Writers own
-their table lifecycle and Reader/Writer sharing, independently of admin status.
-The Access tab uses Command Center's sharing assignment matrix: available and
-selected users/teams for Reader and Writer roles, with named principals, search,
-and add/remove controls. Changes stay local until **Save access**; **Discard changes**
-restores the saved assignments. Writers are also Readers; removing Reader access
-removes Writer access, while removing Writer access retains Reader access.
-Namespace inheritance is displayed separately. Effective-access checks and durable
-audit history are available in disclosures below the matrix. Missing directory
-entries remain visible and removable as unavailable users/teams, never UUID labels.
-Global Security recovers orphaned tables and administers namespace grants.
+management, and global Security require Organization admin. Access to namespaces
+and tables is a role (MetaTables ADR 0024): metadata viewer, data viewer, data
+writer, editor or owner, each including the one before it. Every table and namespace
+Access tab lists its bindings with the role's texts from `GET /access/roles/`, their
+source, who granted them and when; owners grant, change and revoke through
+`access/changes/` against the revision they loaded, after reviewing the role's texts.
+Explain and a table's access history sit below. Buttons and data tabs follow
+`allowed_actions` from `access/me/` or the table response. Missing directory entries
+remain visible and revocable as unavailable users/teams, never UUID labels. Any person
+creates a namespace from Namespaces and owns it. Global Security keeps administration:
+database permission state, the security check and catalog-wide access history.
 Data Sources appears once in the MetaTables menu, at `/data-sources` with details
 at `/data-sources/{uid}`. All authenticated users can browse sources, including
 before runtime initialization. Admins register and manage sources in these same

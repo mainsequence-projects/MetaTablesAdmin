@@ -90,7 +90,7 @@ export function DatabasePermissionsPanel() {
         columns={[
           { id: "table", header: "Table", importance: "primary", renderCell: table => data.engine !== "sqlite" && table.schema ? `${table.schema}.${table.name}` : table.name },
           { id: "policy", header: "Policy", importance: "secondary", renderCell: table => <Badge tone={table.policy_present ? "success" : "warning"}>{table.policy_present ? "Configured" : "Missing"}</Badge> },
-          { id: "writes", header: "Write policy", importance: "secondary", renderCell: table => !table.policy_present ? "Unavailable" : table.writes_supported ? "Writer grants allowed" : "Read only" },
+          { id: "writes", header: "Write policy", importance: "secondary", renderCell: table => !table.policy_present ? "Unavailable" : table.writes_supported ? "Row writes allowed" : "Read only" },
         ]} />
     </>}</RemoteContent>
     <div className="runtime-form-actions"><Button disabled={checking || !current} pending={running} onClick={() => void runCheck()}>Run security check now</Button></div>

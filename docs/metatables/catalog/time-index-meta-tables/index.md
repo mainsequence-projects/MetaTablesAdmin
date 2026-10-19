@@ -29,7 +29,7 @@ Search or filter the list, then select an item to open its details. **Deep searc
 
 This view focuses on time-index tables. Stats describe the data currently available, while updates describe the work that produces it. A capability or tab can be unavailable when the database does not support it or the application cannot obtain its current status.
 
-Timescale Policies shows each policy's job status, last success, next run and failures. Writers on a read-write Data Source can change them; everyone else sees them read-only. Retention must be longer than compression. Saving a new retention period asks you to confirm, because chunks older than the cutoff are permanently dropped on every run, including older data backfilled later.
+Timescale Policies shows each policy's job status, last success, next run and failures. Editors and owners of the table on a read-write Data Source can change them; everyone else sees them read-only. Retention must be longer than compression. Saving a new retention period asks you to confirm, because chunks older than the cutoff are permanently dropped on every run, including older data backfilled later.
 
 ## If something goes wrong
 

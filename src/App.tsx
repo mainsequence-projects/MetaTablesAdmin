@@ -117,7 +117,7 @@ function ResourceRoute({ resource }: { resource: PageResource }) {
 function RequireAdministrator() {
   const { runtime } = useRuntimeContext();
   if (runtime.is_admin !== true) return <ApplicationStatusScreen variant="contained" title="Admin access required"
-    message="Application Settings and Security require platform admin access. Table Writers manage sharing on their table's Access panel." state="error" />;
+    message="Application Settings and Security require platform admin access. Owners manage access on each table's and namespace's Access panel." state="error" />;
   return <Outlet />;
 }
 

@@ -2,7 +2,10 @@
  * Model, layout and tracing for a namespace's access map
  * (MetaTables `GET /namespaces/{uid}/access-map/`). Pure, so Node tests run it directly.
  */
-export type AccessLevel = "reader" | "writer";
+import type { AccessRole } from "./api";
+
+/** Grants are drawn as reads (metadata or rows) or writes (rows, the table or its access). */
+export type AccessLevel = "read" | "write";
 
 export type AccessMapPayload = {
   namespace: { uid: string; name: string };
@@ -10,10 +13,10 @@ export type AccessMapPayload = {
   table_count: number;
   tables_truncated: boolean;
   tables: { uid: string; name: string; kind: string; namespace_uid: string | null; namespace_name: string | null;
-    related: boolean; viewer_access: AccessLevel }[];
+    related: boolean; viewer_role: AccessRole | null }[];
   principals: { kind: "user" | "team"; uid: string; name: string | null; identity_type: "person" | "workload" | null }[];
   grants: { uid: string; target_kind: "namespace" | "table"; target_uid: string; principal_kind: "user" | "team";
-    principal_uid: string; access_level: AccessLevel }[];
+    principal_uid: string; role: AccessRole }[];
   memberships: { team_uid: string; user_uid: string }[];
   unreadable_team_uids: string[];
   relationships: { kind: "foreign_key" | "update_input"; source_table_uid: string; target_table_uid: string; name: string | null }[];
@@ -26,11 +29,14 @@ export type AccessNode = {
 };
 export type AccessEdgeKind = "member" | AccessLevel | "contains" | "foreign_key" | "update_input";
 /** Relationship edges always leave a namespace table; `reversed` says the real direction points back at it. */
-export type AccessEdge = { id: string; source: string; target: string; kind: AccessEdgeKind; reversed?: boolean };
+export type AccessEdge = { id: string; source: string; target: string; kind: AccessEdgeKind; role?: AccessRole; reversed?: boolean };
 export type AccessMap = { nodes: AccessNode[]; edges: AccessEdge[] };
 
-const LEVEL: Record<AccessLevel, string> = { reader: "Reader", writer: "Writer" };
-export const accessLevelName = (level: AccessLevel) => LEVEL[level];
+const ROLE: Record<AccessRole, string> = {
+  metadata_viewer: "Metadata viewer", data_viewer: "Data viewer", data_writer: "Data writer", editor: "Editor", owner: "Owner",
+};
+export const accessRoleName = (role: AccessRole | null) => role ? ROLE[role] ?? role : "No role";
+export const accessLevel = (role: AccessRole): AccessLevel => role === "metadata_viewer" || role === "data_viewer" ? "read" : "write";
 export const principalId = (kind: "user" | "team", uid: string) => `${kind}:${uid}`;
 
 export function principalLabel(principal: { kind: "user" | "team"; uid: string; name: string | null }) {
@@ -60,8 +66,8 @@ export function buildAccessMap(payload: AccessMapPayload): AccessMap {
     if (!table.related) focus.add(table.uid);
     const kind = table.kind === "time_index" ? "Time-indexed" : "Relational";
     nodes.push({ id: `table:${table.uid}`, uid: table.uid, kind: table.related ? "related" : "table", label: table.name,
-      meta: `${table.related ? table.namespace_name ?? "No namespace" : kind} · you: ${LEVEL[table.viewer_access]}`,
-      viewer: false, tableKind: table.kind, access: table.viewer_access });
+      meta: `${table.related ? table.namespace_name ?? "No namespace" : kind} · you: ${accessRoleName(table.viewer_role)}`,
+      viewer: false, tableKind: table.kind, access: table.viewer_role ? accessLevel(table.viewer_role) : undefined });
   }
   const ids = new Set(nodes.map(node => node.id));
   const edges: AccessEdge[] = [];
@@ -72,7 +78,7 @@ export function buildAccessMap(payload: AccessMapPayload): AccessMap {
   for (const grant of payload.grants) {
     const source = principalId(grant.principal_kind, grant.principal_uid);
     const target = grant.target_kind === "namespace" ? namespaceId : `table:${grant.target_uid}`;
-    if (ids.has(source) && ids.has(target)) edges.push({ id: `grant:${grant.uid}`, source, target, kind: grant.access_level });
+    if (ids.has(source) && ids.has(target)) edges.push({ id: `grant:${grant.uid}`, source, target, kind: accessLevel(grant.role), role: grant.role });
   }
   for (const uid of focus) edges.push({ id: `contains:${uid}`, source: namespaceId, target: `table:${uid}`, kind: "contains" });
   payload.relationships.forEach((relation, index) => {
@@ -125,7 +131,7 @@ export function layoutAccessMap(map: AccessMap): AccessLayout {
   return { boxes, lanes, bounds: { x: 0, y: 0, width: Math.max(0, x - COLUMN_GAP), height: TOP + tallest } };
 }
 
-const ACCESS_EDGES = new Set<AccessEdgeKind>(["member", "reader", "writer", "contains"]);
+const ACCESS_EDGES = new Set<AccessEdgeKind>(["member", "read", "write", "contains"]);
 
 /**
  * Everything a selected node reaches (following member, grant and namespace edges forward),
@@ -169,20 +175,20 @@ export function explainAccess(payload: AccessMapPayload, selectedId: string): st
     const teams = kind === "user" ? payload.memberships.filter(m => m.user_uid === uid).map(m => m.team_uid) : [];
     const lines = payload.grants
       .filter(grant => grant.principal_kind === kind && grant.principal_uid === uid || grant.principal_kind === "team" && teams.includes(grant.principal_uid))
-      .map(grant => `${LEVEL[grant.access_level]} on ${target(grant)}${grant.principal_uid === uid ? "" : ` through ${label.get(principalId("team", grant.principal_uid))}`}`);
+      .map(grant => `${accessRoleName(grant.role)} on ${target(grant)}${grant.principal_uid === uid ? "" : ` through ${label.get(principalId("team", grant.principal_uid))}`}`);
     if (kind === "team" && payload.unreadable_team_uids.includes(uid)) lines.push("You can't see this Team's members.");
     return lines.length ? lines : ["No grant here."];
   }
   if (kind === "namespace") {
     const lines = payload.grants.filter(grant => grant.target_kind === "namespace")
-      .map(grant => `${LEVEL[grant.access_level]}: ${label.get(principalId(grant.principal_kind, grant.principal_uid))} on every table`);
+      .map(grant => `${accessRoleName(grant.role)}: ${label.get(principalId(grant.principal_kind, grant.principal_uid))} on every table`);
     return lines.length ? lines : ["No one has a grant on the namespace itself."];
   }
   const table = tables.get(uid);
   if (!table) return [];
   const lines = table.related ? [] : payload.grants
     .filter(grant => grant.target_kind === "namespace" || grant.target_uid === uid)
-    .map(grant => `${LEVEL[grant.access_level]}: ${label.get(principalId(grant.principal_kind, grant.principal_uid))} (${grant.target_kind === "namespace" ? "namespace grant" : "direct grant"})`);
+    .map(grant => `${accessRoleName(grant.role)}: ${label.get(principalId(grant.principal_kind, grant.principal_uid))} (${grant.target_kind === "namespace" ? "namespace role" : "direct role"})`);
   for (const relation of payload.relationships) {
     if (relation.source_table_uid !== uid && relation.target_table_uid !== uid) continue;
     const outgoing = relation.source_table_uid === uid;

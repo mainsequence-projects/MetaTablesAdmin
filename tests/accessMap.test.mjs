@@ -8,9 +8,9 @@ const payload = {
   viewer: { user_uid: "api", team_uids: ["trading"] },
   table_count: 2, tables_truncated: false,
   tables: [
-    { uid: "daily", name: "prices.daily_close", kind: "relational", namespace_uid: "ns", namespace_name: "prices", related: false, viewer_access: "reader" },
-    { uid: "intraday", name: "prices.intraday", kind: "time_index", namespace_uid: "ns", namespace_name: "prices", related: false, viewer_access: "reader" },
-    { uid: "orders", name: "trading.orders", kind: "relational", namespace_uid: "tns", namespace_name: "trading", related: true, viewer_access: "writer" },
+    { uid: "daily", name: "prices.daily_close", kind: "relational", namespace_uid: "ns", namespace_name: "prices", related: false, viewer_role: "data_viewer" },
+    { uid: "intraday", name: "prices.intraday", kind: "time_index", namespace_uid: "ns", namespace_name: "prices", related: false, viewer_role: "data_viewer" },
+    { uid: "orders", name: "trading.orders", kind: "relational", namespace_uid: "tns", namespace_name: "trading", related: true, viewer_role: "data_writer" },
   ],
   principals: [
     { kind: "user", uid: "job", name: "prices migrations (Job workload)", identity_type: "workload" },
@@ -21,10 +21,10 @@ const payload = {
     { kind: "team", uid: "hidden", name: null, identity_type: null },
   ],
   grants: [
-    { uid: "g1", target_kind: "namespace", target_uid: "ns", principal_kind: "team", principal_uid: "prices", access_level: "writer" },
-    { uid: "g2", target_kind: "namespace", target_uid: "ns", principal_kind: "team", principal_uid: "trading", access_level: "reader" },
-    { uid: "g3", target_kind: "namespace", target_uid: "ns", principal_kind: "team", principal_uid: "hidden", access_level: "reader" },
-    { uid: "g4", target_kind: "table", target_uid: "daily", principal_kind: "user", principal_uid: "retired-workload", access_level: "writer" },
+    { uid: "g1", target_kind: "namespace", target_uid: "ns", principal_kind: "team", principal_uid: "prices", role: "editor" },
+    { uid: "g2", target_kind: "namespace", target_uid: "ns", principal_kind: "team", principal_uid: "trading", role: "data_viewer" },
+    { uid: "g3", target_kind: "namespace", target_uid: "ns", principal_kind: "team", principal_uid: "hidden", role: "metadata_viewer" },
+    { uid: "g4", target_kind: "table", target_uid: "daily", principal_kind: "user", principal_uid: "retired-workload", role: "owner" },
   ],
   memberships: [{ team_uid: "prices", user_uid: "job" }, { team_uid: "trading", user_uid: "api" }],
   unreadable_team_uids: ["hidden"],
@@ -43,6 +43,12 @@ test("the access map labels principals the caller cannot resolve and marks the v
   assert.equal(node("user:api").viewer, true);
   assert.equal(node("team:trading").viewer, true);
   assert.equal(node("table:orders").kind, "related");
+  // The viewer's role colours a table; a grant edge is a read or a write and keeps its role.
+  assert.equal(node("table:daily").access, "read");
+  assert.match(node("table:daily").meta, /you: Data viewer$/);
+  assert.equal(node("table:orders").access, "write");
+  assert.deepEqual(map.edges.filter(edge => edge.role).map(edge => [edge.id, edge.kind, edge.role]), [
+    ["grant:g1", "write", "editor"], ["grant:g2", "read", "data_viewer"], ["grant:g3", "read", "metadata_viewer"], ["grant:g4", "write", "owner"]]);
   // A relationship always leaves a namespace table; the foreign key from orders points back at it.
   const fk = map.edges.find(edge => edge.kind === "foreign_key");
   assert.deepEqual([fk.source, fk.target, fk.reversed], ["table:daily", "table:orders", true]);
@@ -78,11 +84,11 @@ test("tracing a table lights who reaches it; tracing a workload lights what it r
   assert.ok(!workload.nodes.has("team:prices") && !workload.nodes.has("user:job"));
 });
 
-test("explanations name the grant and the Team it comes through", () => {
-  assert.deepEqual(explainAccess(payload, "user:api"), ["Reader on namespace prices through trading-development"]);
+test("explanations name the role and the Team it comes through", () => {
+  assert.deepEqual(explainAccess(payload, "user:api"), ["Data viewer on namespace prices through trading-development"]);
   assert.deepEqual(explainAccess(payload, "table:daily"), [
-    "Writer: prices-development (namespace grant)", "Reader: trading-development (namespace grant)",
-    "Reader: Team you can't see (namespace grant)", "Writer: User retired- (direct grant)", "Referenced by trading.orders"]);
-  assert.deepEqual(explainAccess(payload, "team:hidden"), ["Reader on namespace prices", "You can't see this Team's members."]);
+    "Editor: prices-development (namespace role)", "Data viewer: trading-development (namespace role)",
+    "Metadata viewer: Team you can't see (namespace role)", "Owner: User retired- (direct role)", "Referenced by trading.orders"]);
+  assert.deepEqual(explainAccess(payload, "team:hidden"), ["Metadata viewer on namespace prices", "You can't see this Team's members."]);
   assert.deepEqual(explainAccess(payload, "table:orders"), ["References prices.daily_close", "Updated from prices.intraday"]);
 });

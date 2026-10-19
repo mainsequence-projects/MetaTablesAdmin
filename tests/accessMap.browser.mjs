@@ -17,7 +17,7 @@ const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host',
 const ns = '76bb5bc7-06b4-49b0-a45f-f3787e716ad5';
 const viewer = '889cb532-3d40-4261-9921-352336237069';
 const table = (uid, name, kind, related = false) => ({ uid, name, kind, namespace_uid: related ? 'other' : ns,
-  namespace_name: related ? 'trading' : 'prices', related, viewer_access: related ? 'writer' : 'reader' });
+  namespace_name: related ? 'trading' : 'prices', related, viewer_role: related ? 'data_writer' : 'data_viewer' });
 const accessMap = relationships => ({
   namespace: { uid: ns, name: 'prices' }, viewer: { user_uid: viewer, team_uids: ['trading'] },
   table_count: 3, tables_truncated: false,
@@ -32,9 +32,9 @@ const accessMap = relationships => ({
     { kind: 'team', uid: 'trading', name: 'trading-development', identity_type: null },
   ],
   grants: [
-    { uid: 'g1', target_kind: 'namespace', target_uid: ns, principal_kind: 'team', principal_uid: 'prices', access_level: 'writer' },
-    { uid: 'g2', target_kind: 'namespace', target_uid: ns, principal_kind: 'team', principal_uid: 'trading', access_level: 'reader' },
-    { uid: 'g3', target_kind: 'table', target_uid: 'daily', principal_kind: 'user', principal_uid: 'retired-workload', access_level: 'writer' },
+    { uid: 'g1', target_kind: 'namespace', target_uid: ns, principal_kind: 'team', principal_uid: 'prices', role: 'editor' },
+    { uid: 'g2', target_kind: 'namespace', target_uid: ns, principal_kind: 'team', principal_uid: 'trading', role: 'data_viewer' },
+    { uid: 'g3', target_kind: 'table', target_uid: 'daily', principal_kind: 'user', principal_uid: 'retired-workload', role: 'owner' },
   ],
   memberships: [{ team_uid: 'prices', user_uid: 'job' }, { team_uid: 'prices', user_uid: 'api' }, { team_uid: 'trading', user_uid: viewer }],
   unreadable_team_uids: [],
@@ -86,15 +86,15 @@ try {
       continue;
     }
     await canvas.scrollIntoViewIfNeeded();
-    // Selecting a table explains every grant that reaches it.
+    // Selecting a table explains every role that reaches it.
     await canvas.getByText('prices.daily_close', { exact: true }).click();
-    await page.getByText('Writer: prices-development (namespace grant)', { exact: true }).waitFor();
-    await page.getByText('Writer: User retired- (direct grant)', { exact: true }).waitFor();
+    await page.getByText('Editor: prices-development (namespace role)', { exact: true }).waitFor();
+    await page.getByText('Owner: User retired- (direct role)', { exact: true }).waitFor();
     assert.equal(await page.locator('.mt-anode[data-state="dim"]').count() > 0, true);
     await page.keyboard.press('Escape');
     // The viewer's own workload is traced through its Team.
     await canvas.getByText('trading API (Release workload)', { exact: true }).click();
-    await page.getByText('Reader on namespace prices through trading-development', { exact: true }).waitFor();
+    await page.getByText('Data viewer on namespace prices through trading-development', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Relationships', exact: true }).click();
     await canvas.getByText('trading.orders', { exact: true }).waitFor();
     // Scrolling, loading the assistant and selecting never remount the view: one read each, plus the toggle.
@@ -107,5 +107,5 @@ try {
     if (screenshots) await page.screenshot({ path: `${screenshots}/access-map-${dark ? 'dark' : 'light'}-${width}-traced.png`, fullPage: true });
     await context.close();
   }
-  console.log('Access map browser checks passed: grants, Teams, tracing, explanations and relationships; light/dark at 375/1280.');
+  console.log('Access map browser checks passed: roles, Teams, tracing, explanations and relationships; light/dark at 375/1280.');
 } finally { await browser?.close(); vite.kill(); }

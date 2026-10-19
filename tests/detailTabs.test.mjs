@@ -18,8 +18,19 @@ test("time-index deep links survive loading and resolve against the loaded table
   }
 });
 
+test("rows and statistics need tables.get_data", () => {
+  const reader = ["tables.get", "tables.get_data"];
+  for (const [kind, tab] of [["relational", "rows"], ["time_index", "stats"]]) {
+    const metadata = resolveResourceDetailTabs(tableDetailTabs, { activeTabId: tab, resource: { kind, allowed_actions: ["tables.get"] } });
+    assert.equal(metadata.tabs.some(item => item.id === tab), false);
+    assert.equal(metadata.activeTab.id, "details");
+    const data = resolveResourceDetailTabs(tableDetailTabs, { activeTabId: tab, resource: { kind, allowed_actions: reader } });
+    assert.equal(data.activeTab.id, tab);
+  }
+});
+
 test("Timescale policies require a time-index table and its advertised capability", () => {
-  const timeIndex = { kind: "time_index" };
+  const timeIndex = { kind: "time_index", allowed_actions: ["tables.get", "tables.get_data"] };
   for (const capabilities of [undefined, { timescale_policies: false }]) {
     const resolved = resolveResourceDetailTabs(tableDetailTabs, { activeTabId: "policies", resource: { ...timeIndex, capabilities } });
     assert.equal(resolved.activeTab.id, "details");
