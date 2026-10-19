@@ -61,7 +61,7 @@ try {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
   });
 
-  // Writer: edit, validate, confirm retention, save.
+  // Editor or owner: edit, validate, confirm retention, save.
   await page.goto(`${origin}/tables/${table}?tab=policies`);
   const save = page.getByRole('button', { name: 'Save policies', exact: true });
   await save.waitFor();
@@ -92,10 +92,10 @@ try {
   assert.deepEqual(puts.at(-1).compression, { after: null, schedule_interval: null, initial_start: null, timezone: null });
   assert.equal(puts.at(-1).retention.after, '60 days');
 
-  // Reader: read-only, no save.
+  // Without tables.update: read-only, no save.
   document = policies({ can_edit: false });
   await page.reload();
-  await page.getByText('Only Writers on a read-write DataSource can change policies.', { exact: true }).waitFor();
+  await page.getByText('Only editors and owners of the table on a read-write DataSource can change policies.', { exact: true }).waitFor();
   assert.equal(await save.count(), 0);
   assert.equal(await page.getByLabel('Compress after').isDisabled(), true);
 

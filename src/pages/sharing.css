@@ -2,3 +2,5 @@
 .sharing-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--application-card-header-gap); }
 .sharing-access-check { max-width: 32rem; }
 .sharing-search { max-width: 32rem; }
+.access-principal { display: flex; flex-direction: column; gap: calc(var(--application-card-header-gap) / 2); }
+.access-grant { display: grid; gap: var(--application-card-header-gap); grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); max-width: 48rem; }

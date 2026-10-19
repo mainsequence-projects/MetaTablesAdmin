@@ -140,7 +140,9 @@ export type TableForeignKey = {
   on_delete?: string | null;
 };
 export type TableDetail = TableRecord & {
-  permissions?: { read: boolean; write: boolean; manage_access: boolean };
+  /** The caller's strongest role on the table and the actions it allows (MetaTables ADR 0024). */
+  role?: AccessRole | null;
+  allowed_actions?: string[];
   columns?: TableColumn[];
   indexes?: TableIndex[];
   foreign_keys?: TableForeignKey[];
@@ -153,7 +155,6 @@ export type TableDetail = TableRecord & {
     updates?: boolean;
     timescale_policies?: boolean;
     schema_graph?: boolean;
-    permissions?: boolean;
   };
   actions?: ResourceAction[];
 };
@@ -241,30 +242,55 @@ export type ResourceGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
 /** A user or Team as the caller sees it in the platform directory. A workload User has no name of its own. */
 export type Principal = { uid: string; name: string; email?: string | null; identity_type?: "person" | "workload"; managed_by_caller?: boolean };
 export type PrincipalSearch = { users: Principal[]; teams: Principal[] };
-export type PermissionAssignments = {
-  view: { users: string[]; teams: string[] };
-  edit: { users: string[]; teams: string[] };
+/** Roles are nested, weakest first; each includes every action of the roles before it. */
+export const ACCESS_ROLES = ["metadata_viewer", "data_viewer", "data_writer", "editor", "owner"] as const;
+export type AccessRole = typeof ACCESS_ROLES[number];
+export type AccessObjectKind = "table" | "namespace";
+export type PrincipalKind = "user" | "team";
+export type AccessAction = { action: string; level: "read" | "use" | "write" | "permissions"; covers: string };
+/** What a role allows, what it can cause and what it does not include: shown before it is granted. */
+export type AccessRoleDefinition = {
+  role: AccessRole; actions: string[]; principals: ("user" | "workload" | "team")[];
+  summary: string; impact: string; not_included: string;
 };
-export type GrantContribution = { grant_uid: string; source: "direct" | "namespace"; namespace_uid: string | null; principal_kind: "user" | "team"; principal_uid: string; access_level: "reader" | "writer" };
+/** `GET /access/roles/`: object types, actions and roles with their texts. */
+export type AccessRoleCatalog = {
+  metatables: { actions: AccessAction[]; roles: { role: string; holder: string; actions: string[]; implicit: boolean; summary: string; impact: string; not_included: string }[] };
+  namespaces: { actions: AccessAction[]; roles: AccessRoleDefinition[]; inheritance: string };
+  tables: { actions: AccessAction[]; roles: AccessRoleDefinition[] };
+};
+/** One role granted to one principal on one object; `namespace` bindings are inherited by a table. */
+export type AccessBinding = {
+  uid: string; source: "direct" | "namespace"; principal_kind: PrincipalKind; principal_uid: string; role: AccessRole;
+  granted_by_user_uid: string | null; created_at: string | null; updated_at: string | null; namespace_uid?: string;
+};
+/** A binding that gives the caller (or an explained User) access; `admin` is computed, never stored. */
+export type AccessSource = {
+  source: "direct" | "namespace" | "admin"; role: AccessRole; principal_kind?: PrincipalKind; principal_uid?: string;
+  grant_uid?: string; namespace_uid?: string | null;
+};
+/** `GET .../access/me/`: anyone who can see the object. */
+export type MyAccess = { role: AccessRole | null; allowed_actions: string[]; sources: AccessSource[]; revision: string };
+/** `GET .../access/`: needs `get_access` (editor or owner). */
+export type AccessDocument = {
+  kind: AccessObjectKind; uid: string; revision: string; can_manage: boolean;
+  bindings: AccessBinding[]; inherited: AccessBinding[]; me: MyAccess;
+  candidate_users: Principal[]; candidate_teams: Principal[];
+};
+export type PrincipalRef = { principal_kind: PrincipalKind; principal_uid: string };
+/** Grants and revokes applied together, against the revision the caller read. */
+export type AccessChanges = { revision: string; grant: (PrincipalRef & { role: AccessRole })[]; revoke: PrincipalRef[] };
+export type AccessExplanation = {
+  user_uid: string; action: string; allowed: boolean; role: AccessRole | null; sources: AccessSource[];
+  unreadable_team_uids: string[]; admin_status: boolean | string;
+};
 /** `GET /caller/`: the User the API admitted for the request, named as that User sees the directory. */
 export type AdmittedCaller = {
   user_uid: string; name: string | null; email: string | null; identity_type: "person" | "workload" | null;
   is_admin: boolean; teams: { uid: string; name: string | null }[];
   identified_by: "caller_assertion" | "local_sdk_session" | "developer_sdk_session";
 };
-export type AccessPreview = { user_uid: string; effective_access: "reader" | "writer" | null; remaining_access: "reader" | "writer" | null; contributions: GrantContribution[]; remaining_contributions: GrantContribution[]; unreadable_team_uids?: string[] };
 export type AccessEvent = { uid: string; actor_user_uid: string | null; principal_kind: string; principal_uid: string; previous_access: string | null; new_access: string | null; created_at: string; reason: string };
-export type PermissionsDocument = {
-  revision: string;
-  grants: { uid: string; principal_kind: string; principal_uid: string; access_level: string }[];
-  effective_access: "reader" | "writer" | null;
-  contributions: GrantContribution[];
-  inherited: GrantContribution[];
-  assignments: PermissionAssignments;
-  candidate_users: Principal[];
-  candidate_teams: Principal[];
-  can_edit: boolean;
-};
 
 /** TimescaleDB stores each policy as a background job; `after: null` removes it. */
 export type TimescalePolicy = {
@@ -318,6 +344,8 @@ export class ApiError extends Error {
     message: string,
     public readonly status: number,
     public readonly missingRoute = false,
+    /** The API's `detail`, for refusals that carry context such as a namespace's owners. */
+    public readonly detail: unknown = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -453,7 +481,7 @@ async function sendRequest<T>(
           : response.status === 403
             ? "You do not have permission to view this resource."
             : `MetaTables API request failed (${response.status}).`;
-    throw new ApiError(message, response.status, missingRoute);
+    throw new ApiError(message, response.status, missingRoute, detail);
   }
   return payload as T;
 }
@@ -490,11 +518,25 @@ export type DatabasePermissionStatus = {
   data_source_name: string;
   engine: string;
   enforcement: "sqlite_authorizer" | "database_roles";
+  last_check?: SecurityCheck | null;
   active_tables: number;
   covered_tables: number;
   missing_policies: number;
   tables: { uid: string; name: string; schema: string | null; policy_present: boolean; writes_supported: boolean }[];
 };
+/** The last full security check: daily, or run by an admin (MetaTables ADR 0023). */
+export type SecurityCheck = {
+  trigger: "schedule" | "admin";
+  outcome: "running" | "passed" | "repaired" | "failed";
+  started_at: string;
+  finished_at?: string;
+  statements?: number;
+  error?: string;
+};
+/** Hosted starts the check Job; Local runs the check in the request. */
+export type SecurityCheckRun =
+  | { status: "started"; job_uid: string; requested_at: string }
+  | { status: "finished"; last_check: SecurityCheck };
 export type SourceQueryResult = {
   ok: boolean; results: Record<string, unknown>[]; row_count: number;
   truncated: boolean; max_rows: number; error: string | null;
@@ -524,6 +566,8 @@ export type RelationReadRequest = {
   order_by?: { column: string; direction: "asc" | "desc" }[]; limit?: number; offset?: number;
 };
 export type RelationRowsResult = { rows: Record<string, unknown>[]; columns: string[]; has_more: boolean; limit: number; offset: number };
+const accessBase = (kind: AccessObjectKind, uid: string) => `${kind === "table" ? "meta-tables" : "namespaces"}/${encodeURIComponent(uid)}`;
+
 export const metaTablesApi = {
   discoverSourceRelations: (uid: string, physicalSchema?: string, signal?: AbortSignal) => request<RelationDiscovery>("GET", `data-sources/${encodeURIComponent(uid)}/relations/`, { query: { physical_schema: physicalSchema || undefined }, signal }),
   importRelations: (body: RelationImportRequest, signal?: AbortSignal) => request<RelationImportResult>("POST", "meta-tables/import-from-data-source/", { body, signal }),
@@ -589,14 +633,17 @@ export const metaTablesApi = {
   timescalePolicies: (uid: string, signal?: AbortSignal) => request<TimescaleTablePolicies>("GET", `meta-tables/${encodeURIComponent(uid)}/timescale-policies/`, { signal }),
   saveTimescalePolicies: (uid: string, body: TimescalePoliciesUpdate) => request<TimescaleTablePolicies>("PUT", `meta-tables/${encodeURIComponent(uid)}/timescale-policies/`, { body }),
   securityResources: (search: string, offset: number, signal?: AbortSignal) => request<{ tables: Principal[]; namespaces: Principal[] }>("GET", "security/resources/", { query: { search, offset }, signal }),
-  createSecurityNamespace: (name: string) => request<Principal>("POST", "security/namespaces/", { body: { name } }),
   databasePermissionStatus: (signal?: AbortSignal) => request<DatabasePermissionStatus>("GET", "security/database-permissions/", { signal }),
-  reconcilePermissions: () => request<{ ok: boolean; data_source_uid: string }>("POST", "security/reconcile/"),
+  runSecurityCheck: () => request<SecurityCheckRun>("POST", "security/checks/"),
   searchPrincipals: (search: string, signal?: AbortSignal) => request<PrincipalSearch>("GET", "security/principals/", { query: { search }, signal }),
-  effectiveAccess: (uid: string, userUid: string, withoutGrantUid?: string) => request<AccessPreview>("GET", `meta-tables/${encodeURIComponent(uid)}/effective-access/`, { query: { user_uid: userUid, without_grant_uid: withoutGrantUid } }),
-  accessHistory: (uid: string, namespace = false) => request<AccessEvent[]>("GET", namespace ? "security/access-history/" : `meta-tables/${encodeURIComponent(uid)}/access-history/`, { query: namespace ? { kind: "namespace", uid } : undefined }),
-  tablePermissions: (uid: string, signal?: AbortSignal) => request<PermissionsDocument>("GET", `meta-tables/${encodeURIComponent(uid)}/permissions`, { signal }),
-  saveTablePermissions: (uid: string, assignments: PermissionAssignments, revision: string) => request<PermissionsDocument>("PUT", `meta-tables/${encodeURIComponent(uid)}/permissions`, { body: { assignments, revision } }),
+  accessRoles: (signal?: AbortSignal) => request<AccessRoleCatalog>("GET", "access/roles/", { signal }),
+  access: (kind: AccessObjectKind, uid: string, signal?: AbortSignal) => request<AccessDocument>("GET", `${accessBase(kind, uid)}/access/`, { signal }),
+  myAccess: (kind: AccessObjectKind, uid: string, signal?: AbortSignal) => request<MyAccess>("GET", `${accessBase(kind, uid)}/access/me/`, { signal }),
+  changeAccess: (kind: AccessObjectKind, uid: string, changes: AccessChanges) => request<AccessDocument>("POST", `${accessBase(kind, uid)}/access/changes/`, { body: changes }),
+  explainAccess: (kind: AccessObjectKind, uid: string, action: string, userUid?: string, signal?: AbortSignal) => request<AccessExplanation>("GET", `${accessBase(kind, uid)}/access/explain/`, { query: { action, user_uid: userUid }, signal }),
+  tableAccessHistory: (uid: string, signal?: AbortSignal) => request<AccessEvent[]>("GET", `meta-tables/${encodeURIComponent(uid)}/access-history/`, { signal }),
+  /** Admin only; history survives the object's deletion. */
+  securityAccessHistory: (kind: AccessObjectKind, uid: string, signal?: AbortSignal) => request<AccessEvent[]>("GET", "security/access-history/", { query: { kind, uid }, signal }),
   preflightTableAction: (uid: string, action: string) => request<{ summary: string; affected_count?: number }>("POST", `meta-tables/${encodeURIComponent(uid)}/actions/${encodeURIComponent(action)}/preflight`),
   executeTableAction: (uid: string, action: string) => request<{ message?: string }>("POST", `meta-tables/${encodeURIComponent(uid)}/actions/${encodeURIComponent(action)}/execute`),
   listUpdates: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) => mapPage(page<UpdateApiRecord>(await request("GET", "time-index-table-updates/", { query, signal })), updateRecord),
@@ -611,7 +658,7 @@ export const metaTablesApi = {
   listNamespaces: async (query: Record<string, string | number | undefined>, signal?: AbortSignal) => page<NamespaceRecord>(await request("GET", "namespaces/", { query, signal })),
   namespace: (uid: string, signal?: AbortSignal) => request<NamespaceRecord>("GET", `namespaces/${encodeURIComponent(uid)}/`, { signal }),
   namespaceTables: async (uid: string, query: Record<string, string | number | undefined>, signal?: AbortSignal) => mapPage(page<TableApiRecord>(await request("GET", `namespaces/${encodeURIComponent(uid)}/tables/`, { query, signal })), tableRecord),
-  namespacePermissions: (uid: string, signal?: AbortSignal) => request<PermissionsDocument>("GET", `namespaces/${encodeURIComponent(uid)}/permissions`, { signal }),
+  /** Any person creates a namespace whose name is free and becomes its owner. */
+  createNamespace: (body: { name: string; description?: string | null }) => request<NamespaceRecord>("POST", "namespaces/", { body }),
   namespaceAccessMap: (uid: string, relationships: boolean, signal?: AbortSignal) => request<AccessMapPayload>("GET", `namespaces/${encodeURIComponent(uid)}/access-map/`, { query: { relationships: relationships || undefined }, signal }),
-  saveNamespacePermissions: (uid: string, assignments: PermissionAssignments, revision: string) => request<PermissionsDocument>("PUT", `namespaces/${encodeURIComponent(uid)}/permissions`, { body: { assignments, revision } }),
 };

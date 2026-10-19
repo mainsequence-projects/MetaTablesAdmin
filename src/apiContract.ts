@@ -117,13 +117,18 @@ const codeMessages: Record<string, string> = {
   timescale_extension_missing: "The TimescaleDB extension is not installed in this DataSource’s database.",
   timescale_invalid_interval: "An interval is not valid. Use PostgreSQL interval text such as 12 hours, 7 days or 1 month.",
   timescale_retention_not_after_compression: "Retention must be longer than compression, or chunks would be dropped before they are compressed.",
-  write_access_required: "Writer access to this table is required for this change.",
+  write_access_required: "This change needs the editor or owner role on the table.",
   timescale_invalid_timezone: "The timezone is not valid. Use an IANA name such as UTC or America/New_York.",
   timescale_invalid_policy: "TimescaleDB rejected a policy value. Check the intervals, start time and timezone.",
   timescale_policy_failed: "TimescaleDB could not apply the policies. Nothing was changed.",
   timescale_policies_unavailable: "Compression and retention policies are only available for time-index tables on TimescaleDB.",
   data_source_write_blocked: "This DataSource is read-only. An admin must set its storage access to read-write before changes can be saved.",
   data_source_runtime_access_disabled: "This DataSource is disabled for reads and writes.",
+  namespace_name_taken: "A namespace with this name already exists. Ask one of its owners for access, or choose another name.",
+  namespace_not_found: "The namespace does not exist. Any person can create it and becomes its owner.",
+  namespace_access_required: "This needs the editor or owner role on the namespace. Ask one of its owners.",
+  namespace_required: "Workloads create tables only in a namespace where they hold the editor role.",
+  table_not_editable: "The table is already registered and you lack tables.update on it. Ask one of its owners.",
 };
 
 function codeMessage(code: string): string | null {
@@ -136,11 +141,12 @@ export function apiErrorDetail(detail: unknown): string | null {
     if ("detail" in detail && typeof detail.detail === "string" && detail.detail.trim() && detail.detail !== detail.code) {
       return detail.detail;
     }
+    if ("message" in detail && typeof detail.message === "string" && detail.message.trim()) return detail.message;
     const sqlMessages: Record<string, string> = {
       credential_not_found: "This DataSource’s saved credential is missing from the current runtime. Edit the source and save its password or TLS credential again.",
       unsupported_physical_type: "The relation contains a database type this reader cannot serialize.",
       unsupported_relation_contract: "The physical definition could not be represented as a MetaTable contract.",
-      existing_relation_not_editable_or_external: "This object is already registered and requires Writer access or has a different ownership mode.",
+      existing_relation_not_editable_or_external: "This object is already registered and needs the editor or owner role, or has a different ownership mode.",
       database_identity_unavailable: "The API could not verify the physical database identity. Check source metadata permissions.",
       protected_view_dependency: "The view references protected runtime objects and cannot be imported.",
       unsafe_view_dependency: "The runtime view’s dependencies cannot be safely exposed.",
@@ -153,7 +159,7 @@ export function apiErrorDetail(detail: unknown): string | null {
       relation_not_found: "The table or view is missing or is not visible to the source account.",
       relation_deadline_exceeded: "Reading the source took too long. Select fewer relations or rows and retry.",
       import_selection_limit_exceeded: "Select at most 200 relations, including foreign-key targets.",
-      relation_shape_changed_refresh_required: "The physical definition changed. A table Writer must refresh its metadata before reading.",
+      relation_shape_changed_refresh_required: "The physical definition changed. An editor or owner of the table must refresh its metadata before reading.",
       relation_changed_during_import: "The physical definition changed during import. Refresh the source list and retry.",
       external_source_is_runtime_catalog: "This connection points to a MetaTables runtime catalog. Use its runtime DataSource instead.",
       invalid_relation_filter: "A filter value does not match the registered column type.",

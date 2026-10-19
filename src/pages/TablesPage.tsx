@@ -13,7 +13,7 @@ import { detailPath, resourceLabels, type TableResource } from "../navigation";
 import { tablesDeepSearchResource, tablesResource, timeIndexTablesDeepSearchResource, timeIndexTablesResource } from "../resources";
 import { Badge, Button, DetailSection, DetailView, display, Facts, formatDate, LoadingIndicator, RemoteContent, StatePanel, useRemote } from "../ui";
 import { UlmDiagramTab } from "./ulm/UlmDiagramTab";
-import { PermissionsPanel } from "./PermissionsPanel";
+import { AccessPanel } from "./AccessPanel";
 import { RelationRows } from "./RelationRows";
 import { PoliciesPanel } from "./PoliciesPanel";
 
@@ -25,6 +25,19 @@ function kindLabel(table: TableRecord) {
   if (table.kind === "time_index") return "Time-indexed";
   if (table.management_mode === "external_registered") return "External";
   return "Row table";
+}
+
+const kindInfo = {
+  "View": "A database view registered as a MetaTable. It is read-only; its rows come from the query that defines it.",
+  "Time-indexed": "A table keyed by time. Rows are stored and queried along its time index.",
+  "External": "A table that already existed in the database and was registered in the catalog. MetaTables does not create or migrate it.",
+  "Row table": "A regular table created and managed by MetaTables.",
+} as const;
+
+function statusInfo(status: TableRecord["provisioning_status"]) {
+  if (status === "active") return "Active: the physical table exists and is confirmed. You can query it and write to it.";
+  if (status === "reserved") return "Reserved: the catalog row was registered before its migration created the table, but the migration never finished activating it. Rerun the owning package's MetaTables migrations to activate it.";
+  return "The backend did not report a provisioning status for this table.";
 }
 
 function tableName(table: TableRecord) {
@@ -99,9 +112,13 @@ function TableDetailPage({ uid, requestedTab, resource }: { uid: string; request
     renderBreadcrumbLead={({ current }) => current ? <TableIcon size={16} aria-hidden="true" /> : null}
     summary={detail => ({
       entity: { id: detail.uid, type: detail.kind === "time_index" ? "TimeIndexMetaTable" : "MetaTable", title: tableName(detail) },
-      badges: [{ key: "kind", label: kindLabel(detail), tone: detail.kind === "time_index" ? "primary" : "secondary" },
-        { key: "status", label: display(detail.provisioning_status, "Status unknown"), tone: detail.provisioning_status === "active" ? "success" : "warning" }],
-      inline_fields: [{ key: "uid", label: "UID", value: detail.uid, kind: "code" }, { key: "namespace", label: "Namespace", value: display(detail.namespace_name) }, { key: "physical-table", label: "Physical table", value: detail.physical_table_name, kind: "code" }],
+      badges: [],
+      inline_fields: [
+        { key: "kind", label: "Kind", value: [kindLabel(detail)], kind: "badges", tone: detail.kind === "time_index" ? "primary" : "secondary", info: kindInfo[kindLabel(detail)] },
+        { key: "status", label: "Status", value: [display(detail.provisioning_status, "Status unknown")], kind: "badges", tone: detail.provisioning_status === "active" ? "success" : "warning", info: statusInfo(detail.provisioning_status) },
+        { key: "uid", label: "UID", value: detail.uid, kind: "code", info: "This table's permanent catalog identifier. Use it in API calls and links." },
+        { key: "namespace", label: "Namespace", value: display(detail.namespace_name), info: "The access group that owns this table. Namespace grants decide who can read or write it." },
+        { key: "physical-table", label: "Physical table", value: detail.physical_table_name, kind: "code", info: "The table's real name in the database, as used in SQL." }],
       highlight_fields: detail.description ? [{ key: "description", label: "Description", value: detail.description }] : [],
       stats: [], labels: detail.labels,
     })}
@@ -117,7 +134,7 @@ function TableDetailPage({ uid, requestedTab, resource }: { uid: string; request
       {tab === "stats" && <StatsTab uid={uid} />}
       {tab === "updates" && <TableUpdatesTab uid={uid} />}
       {tab === "policies" && <PoliciesPanel uid={uid} />}
-      {tab === "permissions" && <PermissionsPanel embedded resourceUid={uid} requestKey={`table-permissions-${uid}`} load={signal => metaTablesApi.tablePermissions(uid, signal)} save={(value, revision) => metaTablesApi.saveTablePermissions(uid, value, revision)} />}
+      {tab === "permissions" && <AccessPanel kind="table" uid={uid} namespaceName={detail.namespace_name} />}
     </>}
   </DetailView>;
 }

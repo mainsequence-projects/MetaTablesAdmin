@@ -24,7 +24,11 @@ test("Timescale and access codes read as messages in either detail shape", () =>
   assert.match(apiErrorDetail("timescale_not_hypertable"), /not a TimescaleDB hypertable/);
   assert.match(apiErrorDetail({ code: "timescale_version_unsupported" }), /2\.11 or later/);
   assert.match(apiErrorDetail({ code: "timescale_retention_not_after_compression", detail: "timescale_retention_not_after_compression" }), /longer than compression/);
-  assert.match(apiErrorDetail("write_access_required"), /Writer access/);
+  assert.match(apiErrorDetail("write_access_required"), /editor or owner role/);
+  assert.match(apiErrorDetail({ code: "namespace_name_taken", namespace: "crm", owners: [] }), /already exists/);
+  // Registration refusals carry their recovery as `message`.
+  assert.equal(apiErrorDetail({ code: "namespace_access_required", message: "Ask an owner of namespace 'crm'.", action: "tables.create" }),
+    "Ask an owner of namespace 'crm'.");
   assert.match(apiErrorDetail({ code: "data_source_write_blocked" }), /read-only/);
   assert.equal(apiErrorDetail({ code: "timescale_invalid_interval", detail: 'invalid input syntax for type interval: "soon"' }),
     'invalid input syntax for type interval: "soon"');

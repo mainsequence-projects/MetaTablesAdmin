@@ -10,7 +10,7 @@ import {
 import { ArrowUpRight, Bot, Layers3, Link2, Maximize, RefreshCw, Table2, User, Users, ZoomIn, ZoomOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
-  buildAccessMap, explainAccess, layoutAccessMap, traceAccess,
+  accessRoleName, buildAccessMap, explainAccess, layoutAccessMap, traceAccess,
   type AccessEdge, type AccessLane, type AccessMapPayload, type AccessNode,
 } from "../accessMap";
 import { metaTablesApi } from "../api";
@@ -54,14 +54,15 @@ function LaneHeaders({ lanes }: { lanes: AccessLane[] }) {
     <span key={lane.label} style={{ left: lane.x * zoom + tx, width: lane.width * zoom }}>{lane.label}<b>{lane.count}</b></span>)}</div>;
 }
 
-const edgeLabel = (edge: AccessEdge) => ({ reader: "Reader", writer: "Writer", member: "member", contains: "", foreign_key: "references", update_input: "feeds" })[edge.kind];
+const edgeLabel = (edge: AccessEdge) => edge.role ? accessRoleName(edge.role)
+  : ({ read: "", write: "", member: "member", contains: "", foreign_key: "references", update_input: "feeds" })[edge.kind];
 
 export function AccessMapTab({ uid }: { uid: string }) {
   const [relationships, setRelationships] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const requestKey = `namespace-access-map-${uid}-${relationships}-${refresh}`;
   const remote = useRemote(requestKey, signal => metaTablesApi.namespaceAccessMap(uid, relationships, signal));
-  return <DetailSection title="Access map" description="Who reaches this namespace's tables, and through which Team and grant. It shows only what you can see."
+  return <DetailSection title="Access map" description="Who reaches this namespace's tables, and through which Team and role. It shows only what you can see."
     actions={<>
       <Button size="small" variant={relationships ? "secondary" : "ghost"} aria-pressed={relationships} onClick={() => setRelationships(value => !value)}><Link2 size={16} aria-hidden="true" />Relationships</Button>
       <Button size="small" variant="ghost" onClick={() => setRefresh(value => value + 1)}><RefreshCw size={16} aria-hidden="true" />Refresh</Button>
@@ -91,7 +92,7 @@ export function AccessMapCanvas({ payload }: { payload: AccessMapPayload }) {
       draggable: false, connectable: false, style: { pointerEvents: "all" }, ariaLabel: `${node.label}, ${node.meta}` };
   });
   const flowEdges: Edge[] = map.edges.map(edge => {
-    const color = edge.kind === "writer" ? writeColor : edge.kind === "reader" ? readColor : "var(--muted-foreground)";
+    const color = edge.kind === "write" ? writeColor : edge.kind === "read" ? readColor : "var(--muted-foreground)";
     const relation = edge.kind === "foreign_key" || edge.kind === "update_input";
     const marker = { type: MarkerType.ArrowClosed, color };
     return { id: edge.id, source: edge.source, target: edge.target, sourceHandle: "out",
@@ -135,7 +136,7 @@ export function AccessMapCanvas({ payload }: { payload: AccessMapPayload }) {
       }}>
       <div className="mt-amap__toolbar">
         <span className="mt-amap__summary" role="status">
-          {`${payload.table_count} tables · ${counts.principals} users and Teams · ${counts.grants} grants`}
+          {`${payload.table_count} tables · ${counts.principals} users and Teams · ${counts.grants} roles granted`}
           {payload.tables_truncated && ` · showing the first ${payload.tables.filter(table => !table.related).length}`}
         </span>
         <div className="mt-amap__controls" role="group" aria-label="Access map view">
@@ -165,18 +166,18 @@ export function AccessMapCanvas({ payload }: { payload: AccessMapPayload }) {
             </div>
           </Panel>}
         </ReactFlow>
-      </div> : <StatePanel embedded title="Nothing to show">No grant on this namespace or its tables is visible to you, and it has no tables you can see.</StatePanel>}
+      </div> : <StatePanel embedded title="Nothing to show">No role on this namespace or its tables is visible to you, and it has no tables you can see.</StatePanel>}
       <div className="mt-amap__footer">
         <span className="mt-amap__legend" aria-label="Access map legend">
-          <span><i data-edge="writer" />Writer</span><span><i data-edge="reader" />Reader</span>
+          <span><i data-edge="write" />Writes: data writer, editor, owner</span><span><i data-edge="read" />Reads: metadata or data viewer</span>
           <span><i data-edge="member" />Team member</span><span><i data-edge="contains" />In the namespace</span>
           <span><i data-edge="relation" />Relationship</span>
         </span>
         <span>{selected ? "Highlighted: everything it reaches and everything that reaches it · Esc to clear" : "Select a user, Team, namespace or table to trace its access."}</span>
       </div>
       <div className="mt-amap__rules" aria-label="How access works">
-        <span><Badge tone="success">Enforced</Badge>Registering a table here needs Writer on the namespace, directly or through a Team.</span>
-        <span><Badge tone="success">Enforced</Badge>Reading or writing a table needs a grant on it or on its namespace, in the API and in the database.</span>
+        <span><Badge tone="success">Enforced</Badge>Creating a table here needs editor or owner on the namespace, directly or through a Team.</span>
+        <span><Badge tone="success">Enforced</Badge>Reading a table needs data viewer, and writing its rows data writer, on it or on its namespace, in the API and in the database.</span>
         <span><Badge tone="warning">Not enforced</Badge>Which project uses this namespace. One namespace per application is a recommendation.</span>
       </div>
     </div>

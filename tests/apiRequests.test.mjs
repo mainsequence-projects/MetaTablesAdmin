@@ -290,6 +290,38 @@ test("a namespace's access map asks for relationships only when they are shown",
   await related;
 });
 
+test("access reads and changes use the role routes of tables and namespaces", async () => {
+  const calls = transport();
+  const reads = [api.accessRoles(), api.access("table", "daily close"), api.myAccess("namespace", "prices"),
+    api.explainAccess("table", "daily close", "tables.get_data", "bob"), api.explainAccess("namespace", "prices", "namespaces.get"),
+    api.tableAccessHistory("daily close"), api.securityAccessHistory("namespace", "prices")];
+  await Promise.resolve();
+  assert.deepEqual(calls.map(call => [call.init.method, call.path]), [
+    ["GET", "/access/roles/"], ["GET", "/meta-tables/daily%20close/access/"], ["GET", "/namespaces/prices/access/me/"],
+    ["GET", "/meta-tables/daily%20close/access/explain/?action=tables.get_data&user_uid=bob"],
+    ["GET", "/namespaces/prices/access/explain/?action=namespaces.get"],
+    ["GET", "/meta-tables/daily%20close/access-history/"], ["GET", "/security/access-history/?kind=namespace&uid=prices"]]);
+  calls.forEach(call => call.respond({}));
+  await Promise.all(reads);
+  const changes = { revision: "rev-1", grant: [{ principal_kind: "team", principal_uid: "research", role: "editor" }], revoke: [{ principal_kind: "user", principal_uid: "bob" }] };
+  const saved = api.changeAccess("namespace", "prices", changes);
+  await Promise.resolve();
+  assert.deepEqual([calls[7].init.method, calls[7].path, JSON.parse(calls[7].init.body)], ["POST", "/namespaces/prices/access/changes/", changes]);
+  calls[7].respond({ revision: "rev-2" });
+  assert.deepEqual(await saved, { revision: "rev-2" });
+});
+
+test("creating a namespace keeps the owners a taken name reports", async () => {
+  let sent;
+  setTransport((path, init) => { sent = { path, init }; return Promise.resolve(Response.json({ detail: {
+    code: "namespace_name_taken", namespace: "crm", owners: [{ principal_kind: "user", principal_uid: "ana" }] } }, { status: 409 })); });
+  const error = await api.createNamespace({ name: "crm", description: null }).catch(cause => cause);
+  assert.deepEqual([sent.init.method, sent.path, JSON.parse(sent.init.body)], ["POST", "/namespaces/", { name: "crm", description: null }]);
+  assert.equal(error.status, 409);
+  assert.match(error.message, /already exists/);
+  assert.deepEqual(error.detail.owners, [{ principal_kind: "user", principal_uid: "ana" }]);
+});
+
 test("the ULM request retains column endpoints and identity needed by the schema explorer", async () => {
   const calls = transport();
   const pending = api.tableSchemaGraph("daily-return", 3, true);

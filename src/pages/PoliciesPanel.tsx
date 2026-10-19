@@ -58,7 +58,7 @@ function PolicyEditor({ uid, initial }: { uid: string; initial: TimescaleTablePo
 
   return <DetailSection title="Timescale policies" description="TimescaleDB runs these as background jobs on the hypertable: compression shrinks older chunks, retention permanently drops expired ones."
     actions={editable ? <Button variant="primary" pending={saving} disabled={blocked || !dirty} onClick={() => retentionNeedsConfirmation(draft.retention, loaded.retention) ? setConfirming(true) : void save()}>Save policies</Button> : undefined}>
-    {!editable && <StatePanel embedded title="Read-only">Only Writers on a read-write DataSource can change policies.</StatePanel>}
+    {!editable && <StatePanel embedded title="Read-only">Only editors and owners of the table on a read-write DataSource can change policies.</StatePanel>}
     <ApplicationCardGrid minimumCardWidth="22rem">
       <PolicyCard kind="compression" draft={draft.compression} job={job("compression")} editable={editable} onChange={(patch) => change("compression", patch)} facts={[
         { label: "Segment by", value: <span className="mono">{loaded.compression_settings.segmentby.join(", ") || "None"}</span> },
