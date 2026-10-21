@@ -309,7 +309,10 @@ source, who granted them and when; owners grant, change and revoke through
 Explain and a table's access history sit below. Buttons and data tabs follow
 `allowed_actions` from `access/me/` or the table response. Missing directory entries
 remain visible and revocable as unavailable users/teams, never UUID labels. Any person
-creates a namespace from Namespaces and owns it. Global Security keeps administration:
+creates a namespace from Namespaces and owns it. A workload's registration creates a
+missing namespace and gets editor; the namespace's Access tab names that workload from
+`created_by_workload_uid`, and the people who manage it (the `manager` source, with no
+role) grant any role there, owner only to people and Teams. Global Security keeps administration:
 database permission state, the security check and catalog-wide access history.
 Data Sources appears once in the MetaTables menu, at `/data-sources` with details
 at `/data-sources/{uid}`. All authenticated users can browse sources, including

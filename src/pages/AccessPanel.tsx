@@ -5,11 +5,12 @@ import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layou
 import { DataTable, ResourceActionConfirmationDialog } from "@dev-mainsequence/command-center-sdk/views";
 import {
   ApiError, metaTablesApi, type AccessBinding, type AccessChanges, type AccessDocument, type AccessEvent, type AccessExplanation,
-  type AccessObjectKind, type AccessRole, type AccessRoleCatalog, type AccessSource, type MyAccess, type PrincipalSearch,
+  type AccessObjectKind, type AccessRole, type AccessRoleCatalog, type MyAccess, type PrincipalSearch,
 } from "../api";
 import {
-  accessAction, can, canRevoke, catalogFor, grantableRoles, grantChange, isWorkload, parsePrincipalKey, principalDirectory,
-  principalKey, principalName, revokeChange, roleDefinition, roleLabel, sourceLabel, withFoundPrincipals, type DirectoryEntry,
+  accessAction, can, canRevoke, catalogFor, grantableRoles, grantChange, isWorkload, managesCreator, parsePrincipalKey,
+  principalDirectory, principalKey, principalName, revokeChange, roleDefinition, roleLabel, sourceLabel, withFoundPrincipals,
+  workloadName, type DirectoryEntry,
 } from "../accessRoles";
 import { detailPath } from "../navigation";
 import { useRuntimeContext } from "../runtimeContext";
@@ -69,6 +70,8 @@ function AccessContent({ kind, uid, namespaceName, catalog, me, document, caller
   const bound = [...(document?.bindings ?? []), ...(document?.inherited ?? []), ...me.sources];
   const directory = principalDirectory({ users: candidates.candidate_users, teams: candidates.candidate_teams }, bound, callerUid);
   const canManage = document?.can_manage === true;
+  const creatorManager = managesCreator(me.sources);
+  const creatorUid = document?.created_by_workload_uid ?? null;
   const revision = document?.revision ?? me.revision;
   const [pending, setPending] = useState<Pending | null>(null);
   const [working, setWorking] = useState(false);
@@ -121,21 +124,24 @@ function AccessContent({ kind, uid, namespaceName, catalog, me, document, caller
   return <ApplicationPageStack>
     {error && <div role="alert"><Badge tone="danger">Could not change access</Badge><p>{error}</p>
       {conflict && <Button size="small" onClick={() => onChanged(null)}>Reload access</Button>}</div>}
-    <YourAccess kind={kind} catalog={catalog} me={me} directory={directory} namespaceName={namespaceName}
-      disabled={working} onLeave={source => setPending({ type: "revoke", key: principalKey("user", source.principal_uid!), role: source.role })} />
+    <YourAccess kind={kind} catalog={catalog} me={me} directory={directory} namespaceName={namespaceName} creatorManager={creatorManager}
+      disabled={working} onLeave={(principalUid, role) => setPending({ type: "revoke", key: principalKey("user", principalUid), role })} />
     {document && <DetailSection title="Who has access" titleAs="h3" description={canManage
       ? "Grant, change or revoke roles. Each change is checked against the access you loaded."
       : "Only owners decide who has access. You can revoke your own role and change the workloads you manage."}>
+      {creatorUid && <p>{"Created by the workload "}<strong>{workloadName(directory, creatorUid)}</strong>
+        {". The people who manage it decide who has access here, owner included, without access to its tables."}</p>}
       <DataTable items={document.bindings} getId={binding => binding.uid} presentation="auto" emptyContent={`No one holds a role on this ${kind} directly.`} columns={bindingColumns(true)} />
     </DetailSection>}
     {document && document.inherited.length > 0 && <DetailSection title="From the namespace" titleAs="h3"
       description="These roles are granted on the namespace and apply here. Change them on the namespace's Access panel.">
       <DataTable items={document.inherited} getId={binding => binding.uid} presentation="auto" columns={bindingColumns(false)} />
     </DetailSection>}
-    <GrantForm ref={grantForm} kind={kind} catalog={catalog} me={me} directory={directory} canManage={canManage}
+    <GrantForm ref={grantForm} kind={kind} catalog={catalog} me={me} directory={directory} canManage={canManage} creatorManager={creatorManager}
       bindings={document?.bindings ?? []} disabled={working} onFound={onFound}
       onReview={(key, role, current) => setPending({ type: "grant", key, role, current })} />
-    <ExplainAccess kind={kind} uid={uid} catalog={catalog} directory={directory} others={Boolean(document)} namespaceName={namespaceName} callerUid={callerUid} />
+    <ExplainAccess kind={kind} uid={uid} catalog={catalog} directory={directory} others={Boolean(document)} namespaceName={namespaceName}
+      callerUid={callerUid} creatorUid={creatorUid} />
     {kind === "table" && document && <AccessHistory uid={uid} directory={directory} />}
     {pending && pendingDefinition && <ResourceActionConfirmationDialog
       actionLabel={pending.type === "grant" ? `Grant ${roleLabel(pending.role)} to ${pendingName}` : pendingSelf ? `Remove your ${roleLabel(pending.role)} role` : `Revoke ${pendingName}'s ${roleLabel(pending.role)} role`}
@@ -171,30 +177,37 @@ function RoleTexts({ definition }: { definition: { summary: string; impact: stri
   ]} />;
 }
 
-function YourAccess({ kind, catalog, me, directory, namespaceName, disabled, onLeave }: {
+function YourAccess({ kind, catalog, me, directory, namespaceName, creatorManager, disabled, onLeave }: {
   kind: AccessObjectKind; catalog: AccessRoleCatalog; me: MyAccess; directory: ReadonlyMap<string, DirectoryEntry>;
-  namespaceName?: string | null; disabled: boolean; onLeave: (source: AccessSource) => void;
+  namespaceName?: string | null; creatorManager: boolean; disabled: boolean; onLeave: (principalUid: string, role: AccessRole) => void;
 }) {
   const definition = roleDefinition(catalog, kind, me.role);
-  return <DetailSection title="Your access" titleAs="h3" description={definition?.summary ?? `You hold no role on this ${kind}.`}>
+  // A manager of the creating workload holds no role, yet decides who has access.
+  const description = `${definition?.summary ?? `You hold no role on this ${kind}.`}${creatorManager
+    ? " You manage the workload that created it, so you decide who has access here, owner included, without access to its tables." : ""}`;
+  return <DetailSection title="Your access" titleAs="h3" description={description}>
     <div className="sharing-status" role="status">
-      <Badge tone={me.role === "owner" ? "accent" : "neutral"}>{`Your role: ${roleLabel(me.role)}`}</Badge>
+      <Badge tone={me.role === "owner" ? "accent" : "neutral"}>{`Your role: ${me.role ? roleLabel(me.role) : "No role"}`}</Badge>
       <span className="muted">{me.allowed_actions.length ? `Allowed: ${me.allowed_actions.join(", ")}` : "No actions allowed."}</span>
     </div>
     {me.sources.length > 0 && <DataTable items={me.sources} getId={source => source.grant_uid ?? source.source} presentation="auto" columns={[
       { id: "source", header: "From", importance: "primary", renderCell: source => sourceLabel(source, { directory, namespaceName }) },
-      { id: "role", header: "Role", importance: "secondary", renderCell: source => <Badge>{roleLabel(source.role)}</Badge> },
-      { id: "leave", header: "Actions", importance: "secondary", renderCell: source => source.source === "direct" && source.principal_kind === "user"
-        ? <Button size="small" variant="secondary" disabled={disabled} onClick={() => onLeave(source)}>Remove my role</Button> : null },
+      { id: "role", header: "Role", importance: "secondary", renderCell: source => source.role ? <Badge>{roleLabel(source.role)}</Badge>
+        : <span className="muted">No role</span> },
+      { id: "leave", header: "Actions", importance: "secondary", renderCell: source => {
+        const { role, principal_uid: principalUid } = source;
+        return source.source === "direct" && source.principal_kind === "user" && principalUid && role
+          ? <Button size="small" variant="secondary" disabled={disabled} onClick={() => onLeave(principalUid, role)}>Remove my role</Button> : null;
+      } },
     ]} />}
   </DetailSection>;
 }
 
 type GrantFormHandle = { edit: (key: string, role: AccessRole) => void };
 
-function GrantForm({ ref, kind, catalog, me, directory, canManage, bindings, disabled, onFound, onReview }: {
+function GrantForm({ ref, kind, catalog, me, directory, canManage, creatorManager, bindings, disabled, onFound, onReview }: {
   ref: Ref<GrantFormHandle>; kind: AccessObjectKind; catalog: AccessRoleCatalog; me: MyAccess;
-  directory: ReadonlyMap<string, DirectoryEntry>; canManage: boolean; bindings: readonly AccessBinding[]; disabled: boolean;
+  directory: ReadonlyMap<string, DirectoryEntry>; canManage: boolean; creatorManager: boolean; bindings: readonly AccessBinding[]; disabled: boolean;
   onFound: (result: PrincipalSearch) => void; onReview: (key: string, role: AccessRole, current: AccessRole | null) => void;
 }) {
   const [principal, setPrincipal] = useState<string | null>(null);
@@ -212,7 +225,7 @@ function GrantForm({ ref, kind, catalog, me, directory, canManage, bindings, dis
   const people = [...directory.entries()].filter(([, entry]) => entry.available && (canManage || isWorkload(entry) && entry.managed_by_caller === true))
     .sort(([, a], [, b]) => Number(a.kind === "team") - Number(b.kind === "team") || a.name.localeCompare(b.name));
   const entry = principal ? directory.get(principal) : undefined;
-  const options = grantableRoles(catalogFor(catalog, kind).roles, me.role, entry);
+  const options = grantableRoles(catalogFor(catalog, kind).roles, me.role, entry, creatorManager);
   const chosen = options.find(option => option.definition.role === role && !option.reason)?.definition ?? null;
 
   async function find() {
@@ -228,9 +241,10 @@ function GrantForm({ ref, kind, catalog, me, directory, canManage, bindings, dis
     finally { setSearching(false); }
   }
 
-  return <div ref={anchor}><DetailSection title="Grant or change a role" titleAs="h3" description={canManage
-    ? "Choose a person, workload or Team and a role. Granting replaces the role they hold here."
-    : "You can grant a role to the workloads you manage, up to your own role."}>
+  return <div ref={anchor}><DetailSection title="Grant or change a role" titleAs="h3" description={creatorManager
+    ? "Choose a person, workload or Team and a role. As a manager of the workload that created this namespace, you can grant any role; owner goes only to people and Teams."
+    : canManage ? "Choose a person, workload or Team and a role. Granting replaces the role they hold here."
+      : "You can grant a role to the workloads you manage, up to your own role."}>
     <form className="sharing-search" aria-label="Directory search" onSubmit={event => { event.preventDefault(); void find(); }}>
       <Field label="Find people, Teams or workloads" description="Search by name or email, or by a Job, release or Agent name.">
         <Input value={query} maxLength={200} disabled={searching || disabled} onChange={event => setQuery(event.target.value)} />
@@ -259,9 +273,9 @@ function GrantForm({ ref, kind, catalog, me, directory, canManage, bindings, dis
   </DetailSection></div>;
 }
 
-function ExplainAccess({ kind, uid, catalog, directory, others, namespaceName, callerUid }: {
+function ExplainAccess({ kind, uid, catalog, directory, others, namespaceName, callerUid, creatorUid }: {
   kind: AccessObjectKind; uid: string; catalog: AccessRoleCatalog; directory: ReadonlyMap<string, DirectoryEntry>;
-  others: boolean; namespaceName?: string | null; callerUid?: string;
+  others: boolean; namespaceName?: string | null; callerUid?: string; creatorUid: string | null;
 }) {
   const actions = catalogFor(catalog, kind).actions;
   const [action, setAction] = useState<string | null>(actions[0]?.action ?? null);
@@ -291,8 +305,13 @@ function ExplainAccess({ kind, uid, catalog, directory, others, namespaceName, c
     {result && <div role="status">
       <Badge tone={result.allowed ? "success" : "danger"}>{`${who} ${result.allowed ? "can" : "cannot"} ${result.action}`}</Badge>
       <p>{result.role ? `Role here: ${roleLabel(result.role)}.` : "No role here."}</p>
-      {result.sources.map(source => <p key={source.grant_uid ?? source.source}>{`${roleLabel(source.role)} from ${sourceLabel(source, { directory, namespaceName })}.`}</p>)}
+      {result.sources.map(source => <p key={source.grant_uid ?? source.source}>{source.role
+        ? `${roleLabel(source.role)} from ${sourceLabel(source, { directory, namespaceName })}.`
+        : `${sourceLabel(source, { directory, namespaceName })}: ${(source.actions ?? []).join(", ")}.`}</p>)}
       {result.admin_status === true && <p>{"You are an Organization admin, which holds every action."}</p>}
+      {result.manager_status === true && <p>{"You manage the workload that created this namespace, which lets you see it and decide who has access to it."}</p>}
+      {typeof result.manager_status === "string" && creatorUid && <p className="muted">
+        {`Whether ${who} manages the workload that created this namespace is not shown; managing it would let them decide who has access here.`}</p>}
       {result.unreadable_team_uids.length > 0 && <p className="muted">
         {`Roles through ${result.unreadable_team_uids.length === 1 ? "one bound Team" : `${result.unreadable_team_uids.length} bound Teams`} whose members you cannot see are not counted.`}</p>}
     </div>}

@@ -264,10 +264,13 @@ export type AccessBinding = {
   uid: string; source: "direct" | "namespace"; principal_kind: PrincipalKind; principal_uid: string; role: AccessRole;
   granted_by_user_uid: string | null; created_at: string | null; updated_at: string | null; namespace_uid?: string;
 };
-/** A binding that gives the caller (or an explained User) access; `admin` is computed, never stored. */
+/**
+ * A binding that gives the caller (or an explained User) access; `admin` and `manager` are computed, never
+ * stored. `manager`: the caller manages the namespace's creating workload, which gives `actions` and no role.
+ */
 export type AccessSource = {
-  source: "direct" | "namespace" | "admin"; role: AccessRole; principal_kind?: PrincipalKind; principal_uid?: string;
-  grant_uid?: string; namespace_uid?: string | null;
+  source: "direct" | "namespace" | "admin" | "manager"; role: AccessRole | null; principal_kind?: PrincipalKind; principal_uid?: string;
+  grant_uid?: string; namespace_uid?: string | null; actions?: string[]; workload_user_uid?: string;
 };
 /** `GET .../access/me/`: anyone who can see the object. */
 export type MyAccess = { role: AccessRole | null; allowed_actions: string[]; sources: AccessSource[]; revision: string };
@@ -275,6 +278,8 @@ export type MyAccess = { role: AccessRole | null; allowed_actions: string[]; sou
 export type AccessDocument = {
   kind: AccessObjectKind; uid: string; revision: string; can_manage: boolean;
   bindings: AccessBinding[]; inherited: AccessBinding[]; me: MyAccess;
+  /** The workload User whose registration created the namespace; null for tables and namespaces people created. */
+  created_by_workload_uid: string | null;
   candidate_users: Principal[]; candidate_teams: Principal[];
 };
 export type PrincipalRef = { principal_kind: PrincipalKind; principal_uid: string };
@@ -282,7 +287,7 @@ export type PrincipalRef = { principal_kind: PrincipalKind; principal_uid: strin
 export type AccessChanges = { revision: string; grant: (PrincipalRef & { role: AccessRole })[]; revoke: PrincipalRef[] };
 export type AccessExplanation = {
   user_uid: string; action: string; allowed: boolean; role: AccessRole | null; sources: AccessSource[];
-  unreadable_team_uids: string[]; admin_status: boolean | string;
+  unreadable_team_uids: string[]; admin_status: boolean | string; manager_status: boolean | string;
 };
 /** `GET /caller/`: the User the API admitted for the request, named as that User sees the directory. */
 export type AdmittedCaller = {
