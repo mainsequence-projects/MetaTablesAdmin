@@ -16,8 +16,9 @@ const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host',
 });
 const ns = '76bb5bc7-06b4-49b0-a45f-f3787e716ad5';
 const viewer = '889cb532-3d40-4261-9921-352336237069';
-const table = (uid, name, kind, related = false) => ({ uid, name, kind, namespace_uid: related ? 'other' : ns,
-  namespace_name: related ? 'trading' : 'prices', related, viewer_role: related ? 'data_writer' : 'data_viewer' });
+const table = (uid, name, kind, related = false) => ({ uid, name, kind,
+  namespaces: [{ uid: related ? 'other' : ns, name: related ? 'trading' : 'prices' }], related,
+  viewer_role: related ? 'data_writer' : 'data_viewer' });
 const accessMap = relationships => ({
   namespace: { uid: ns, name: 'prices' }, viewer: { user_uid: viewer, team_uids: ['trading'] },
   table_count: 3, tables_truncated: false,

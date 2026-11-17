@@ -5,7 +5,7 @@ import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layou
 import { DataTable, ResourceActionConfirmationDialog } from "@dev-mainsequence/command-center-sdk/views";
 import {
   ApiError, metaTablesApi, type AccessBinding, type AccessChanges, type AccessDocument, type AccessEvent, type AccessExplanation,
-  type AccessObjectKind, type AccessRole, type AccessRoleCatalog, type MyAccess, type PrincipalSearch,
+  type AccessObjectKind, type AccessRole, type AccessRoleCatalog, type MyAccess, type PrincipalSearch, type TableNamespace,
 } from "../api";
 import {
   accessAction, can, canRevoke, catalogFor, grantableRoles, grantChange, isWorkload, managesCreator, parsePrincipalKey,
@@ -15,6 +15,7 @@ import {
 import { detailPath } from "../navigation";
 import { useRuntimeContext } from "../runtimeContext";
 import { Badge, Button, DetailSection, Facts, formatDate, Picker, RemoteContent, StatePanel, useRemote, type RemoteState } from "../ui";
+import { TableNamespaces } from "./TableNamespaces";
 import "./sharing.css";
 
 const noneFound: PrincipalSearch = { users: [], teams: [] };
@@ -29,7 +30,11 @@ type Pending =
  * binding with its role texts, granting and revoking against the access revision, Explain, and a
  * table's access history. Buttons follow the caller's allowed actions from `access/me/`.
  */
-export function AccessPanel({ kind, uid, namespaceName }: { kind: AccessObjectKind; uid: string; namespaceName?: string | null }) {
+export function AccessPanel({ kind, uid, namespaces, onNamespacesChanged }: {
+  kind: AccessObjectKind; uid: string;
+  /** A table's namespaces, and where the panel reports the list after adding or removing one. */
+  namespaces?: TableNamespace[]; onNamespacesChanged?: (namespaces: TableNamespace[]) => void;
+}) {
   const { runtime } = useRuntimeContext();
   const [generation, setGeneration] = useState(0);
   const catalog = useRemote("access-roles", signal => metaTablesApi.accessRoles(signal));
@@ -50,9 +55,10 @@ export function AccessPanel({ kind, uid, namespaceName }: { kind: AccessObjectKi
   return <ApplicationPageStack data-security-access>
     <DetailSection title="Access" description={kind === "namespace"
       ? "Roles on this namespace also apply to every table in it, including tables added later."
-      : "Roles on this table, and the roles its namespace gives on it."}>
+      : "Roles on this table, and the roles its namespaces give on it."}>
       {message && <div role="status"><Badge tone="success">Saved</Badge><p>{message}</p></div>}
-      <RemoteContent state={state}>{data => <AccessContent key={generation} kind={kind} uid={uid} namespaceName={namespaceName}
+      <RemoteContent state={state}>{data => <AccessContent key={generation} kind={kind} uid={uid} namespaces={namespaces}
+        onNamespacesChanged={(next, note) => { onNamespacesChanged?.(next); reload(note); }}
         catalog={data.catalog} me={data.me} document={data.document} callerUid={runtime.user_uid}
         found={found} onFound={result => setFound(current => ({ users: [...current.users, ...result.users], teams: [...current.teams, ...result.teams] }))}
         onChanged={reload} />}</RemoteContent>
@@ -60,12 +66,14 @@ export function AccessPanel({ kind, uid, namespaceName }: { kind: AccessObjectKi
   </ApplicationPageStack>;
 }
 
-function AccessContent({ kind, uid, namespaceName, catalog, me, document, callerUid, found, onFound, onChanged }: {
-  kind: AccessObjectKind; uid: string; namespaceName?: string | null; catalog: AccessRoleCatalog; me: MyAccess;
+function AccessContent({ kind, uid, namespaces, onNamespacesChanged, catalog, me, document, callerUid, found, onFound, onChanged }: {
+  kind: AccessObjectKind; uid: string; namespaces?: TableNamespace[];
+  onNamespacesChanged: (namespaces: TableNamespace[], message: string) => void; catalog: AccessRoleCatalog; me: MyAccess;
   document: AccessDocument | null; callerUid?: string; found: PrincipalSearch;
   onFound: (result: PrincipalSearch) => void; onChanged: (message: string | null) => void;
 }) {
   const roles = catalogFor(catalog, kind).roles;
+  const namespaceNames = Object.fromEntries((namespaces ?? []).map(namespace => [namespace.uid, namespace.name]));
   const candidates = withFoundPrincipals({ candidate_users: document?.candidate_users ?? [], candidate_teams: document?.candidate_teams ?? [] }, found);
   const bound = [...(document?.bindings ?? []), ...(document?.inherited ?? []), ...me.sources];
   const directory = principalDirectory({ users: candidates.candidate_users, teams: candidates.candidate_teams }, bound, callerUid);
@@ -106,7 +114,7 @@ function AccessContent({ kind, uid, namespaceName, catalog, me, document, caller
     { id: "principal", header: "User or Team", importance: "primary" as const, renderCell: (binding: AccessBinding) => <PrincipalCell entry={directory.get(principalKey(binding.principal_kind, binding.principal_uid))} /> },
     { id: "role", header: "Role", importance: "primary" as const, renderCell: (binding: AccessBinding) => <RoleCell role={binding.role} summary={roleDefinition(catalog, kind, binding.role)?.summary} /> },
     { id: "source", header: "Source", importance: "secondary" as const, renderCell: (binding: AccessBinding) => binding.source === "namespace"
-      ? <>{"Namespace "}{binding.namespace_uid ? <Link to={detailPath("namespaces", binding.namespace_uid, "permissions")}>{namespaceName ?? "namespace"}</Link> : namespaceName}</>
+      ? <>{"Namespace "}{binding.namespace_uid ? <Link to={detailPath("namespaces", binding.namespace_uid, "permissions")}>{namespaceNames[binding.namespace_uid] ?? "namespace"}</Link> : null}</>
       : "Direct" },
     { id: "granted-by", header: "Granted by", importance: "secondary" as const, renderCell: (binding: AccessBinding) => binding.granted_by_user_uid ? principalName(directory, "user", binding.granted_by_user_uid) : "System" },
     { id: "when", header: "When", importance: "tertiary" as const, renderCell: (binding: AccessBinding) => formatDate(binding.updated_at ?? binding.created_at) },
@@ -124,7 +132,7 @@ function AccessContent({ kind, uid, namespaceName, catalog, me, document, caller
   return <ApplicationPageStack>
     {error && <div role="alert"><Badge tone="danger">Could not change access</Badge><p>{error}</p>
       {conflict && <Button size="small" onClick={() => onChanged(null)}>Reload access</Button>}</div>}
-    <YourAccess kind={kind} catalog={catalog} me={me} directory={directory} namespaceName={namespaceName} creatorManager={creatorManager}
+    <YourAccess kind={kind} catalog={catalog} me={me} directory={directory} namespaceNames={namespaceNames} creatorManager={creatorManager}
       disabled={working} onLeave={(principalUid, role) => setPending({ type: "revoke", key: principalKey("user", principalUid), role })} />
     {document && <DetailSection title="Who has access" titleAs="h3" description={canManage
       ? "Grant, change or revoke roles. Each change is checked against the access you loaded."
@@ -133,21 +141,23 @@ function AccessContent({ kind, uid, namespaceName, catalog, me, document, caller
         {". The people who manage it decide who has access here, owner included, without access to its tables."}</p>}
       <DataTable items={document.bindings} getId={binding => binding.uid} presentation="auto" emptyContent={`No one holds a role on this ${kind} directly.`} columns={bindingColumns(true)} />
     </DetailSection>}
-    {document && document.inherited.length > 0 && <DetailSection title="From the namespace" titleAs="h3"
-      description="These roles are granted on the namespace and apply here. Change them on the namespace's Access panel.">
+    {kind === "table" && <TableNamespaces uid={uid} namespaces={namespaces ?? []}
+      canAdd={can(me.allowed_actions, "tables.update")} onChanged={onNamespacesChanged} />}
+    {document && document.inherited.length > 0 && <DetailSection title="From its namespaces" titleAs="h3"
+      description="These roles are granted on a namespace this table is in and apply here. Change them on that namespace's Access panel.">
       <DataTable items={document.inherited} getId={binding => binding.uid} presentation="auto" columns={bindingColumns(false)} />
     </DetailSection>}
     <GrantForm ref={grantForm} kind={kind} catalog={catalog} me={me} directory={directory} canManage={canManage} creatorManager={creatorManager}
       bindings={document?.bindings ?? []} disabled={working} onFound={onFound}
       onReview={(key, role, current) => setPending({ type: "grant", key, role, current })} />
-    <ExplainAccess kind={kind} uid={uid} catalog={catalog} directory={directory} others={Boolean(document)} namespaceName={namespaceName}
+    <ExplainAccess kind={kind} uid={uid} catalog={catalog} directory={directory} others={Boolean(document)} namespaceNames={namespaceNames}
       callerUid={callerUid} creatorUid={creatorUid} />
     {kind === "table" && document && <AccessHistory uid={uid} directory={directory} />}
     {pending && pendingDefinition && <ResourceActionConfirmationDialog
       actionLabel={pending.type === "grant" ? `Grant ${roleLabel(pending.role)} to ${pendingName}` : pendingSelf ? `Remove your ${roleLabel(pending.role)} role` : `Revoke ${pendingName}'s ${roleLabel(pending.role)} role`}
       title={pending.type === "grant" ? `Grant ${roleLabel(pending.role)}` : `Revoke ${roleLabel(pending.role)}`}
       description={pending.type === "grant" ? pendingDefinition.summary
-        : `${pendingSelf ? "You lose" : `${pendingName} loses`} the ${roleLabel(pending.role)} role on this ${kind}. Roles through Teams${kind === "table" ? " or the namespace" : ""} still apply.`}
+        : `${pendingSelf ? "You lose" : `${pendingName} loses`} the ${roleLabel(pending.role)} role on this ${kind}. Roles through Teams${kind === "table" ? " or its namespaces" : ""} still apply.`}
       warning={pending.type === "grant" ? pendingDefinition.impact : undefined}
       selectionLabel={pending.type === "grant" && pending.current ? `Replaces ${pendingName}'s current role, ${roleLabel(pending.current)}.` : undefined}
       tone={pending.type === "revoke" ? "danger" : "default"} confirmationValue="" onConfirmationValueChange={() => {}}
@@ -177,9 +187,9 @@ function RoleTexts({ definition }: { definition: { summary: string; impact: stri
   ]} />;
 }
 
-function YourAccess({ kind, catalog, me, directory, namespaceName, creatorManager, disabled, onLeave }: {
+function YourAccess({ kind, catalog, me, directory, namespaceNames, creatorManager, disabled, onLeave }: {
   kind: AccessObjectKind; catalog: AccessRoleCatalog; me: MyAccess; directory: ReadonlyMap<string, DirectoryEntry>;
-  namespaceName?: string | null; creatorManager: boolean; disabled: boolean; onLeave: (principalUid: string, role: AccessRole) => void;
+  namespaceNames: Readonly<Record<string, string>>; creatorManager: boolean; disabled: boolean; onLeave: (principalUid: string, role: AccessRole) => void;
 }) {
   const definition = roleDefinition(catalog, kind, me.role);
   // A manager of the creating workload holds no role, yet decides who has access.
@@ -191,7 +201,7 @@ function YourAccess({ kind, catalog, me, directory, namespaceName, creatorManage
       <span className="muted">{me.allowed_actions.length ? `Allowed: ${me.allowed_actions.join(", ")}` : "No actions allowed."}</span>
     </div>
     {me.sources.length > 0 && <DataTable items={me.sources} getId={source => source.grant_uid ?? source.source} presentation="auto" columns={[
-      { id: "source", header: "From", importance: "primary", renderCell: source => sourceLabel(source, { directory, namespaceName }) },
+      { id: "source", header: "From", importance: "primary", renderCell: source => sourceLabel(source, { directory, namespaceNames }) },
       { id: "role", header: "Role", importance: "secondary", renderCell: source => source.role ? <Badge>{roleLabel(source.role)}</Badge>
         : <span className="muted">No role</span> },
       { id: "leave", header: "Actions", importance: "secondary", renderCell: source => {
@@ -273,9 +283,9 @@ function GrantForm({ ref, kind, catalog, me, directory, canManage, creatorManage
   </DetailSection></div>;
 }
 
-function ExplainAccess({ kind, uid, catalog, directory, others, namespaceName, callerUid, creatorUid }: {
+function ExplainAccess({ kind, uid, catalog, directory, others, namespaceNames, callerUid, creatorUid }: {
   kind: AccessObjectKind; uid: string; catalog: AccessRoleCatalog; directory: ReadonlyMap<string, DirectoryEntry>;
-  others: boolean; namespaceName?: string | null; callerUid?: string; creatorUid: string | null;
+  others: boolean; namespaceNames: Readonly<Record<string, string>>; callerUid?: string; creatorUid: string | null;
 }) {
   const actions = catalogFor(catalog, kind).actions;
   const [action, setAction] = useState<string | null>(actions[0]?.action ?? null);
@@ -306,8 +316,8 @@ function ExplainAccess({ kind, uid, catalog, directory, others, namespaceName, c
       <Badge tone={result.allowed ? "success" : "danger"}>{`${who} ${result.allowed ? "can" : "cannot"} ${result.action}`}</Badge>
       <p>{result.role ? `Role here: ${roleLabel(result.role)}.` : "No role here."}</p>
       {result.sources.map(source => <p key={source.grant_uid ?? source.source}>{source.role
-        ? `${roleLabel(source.role)} from ${sourceLabel(source, { directory, namespaceName })}.`
-        : `${sourceLabel(source, { directory, namespaceName })}: ${(source.actions ?? []).join(", ")}.`}</p>)}
+        ? `${roleLabel(source.role)} from ${sourceLabel(source, { directory, namespaceNames })}.`
+        : `${sourceLabel(source, { directory, namespaceNames })}: ${(source.actions ?? []).join(", ")}.`}</p>)}
       {result.admin_status === true && <p>{"You are an Organization admin, which holds every action."}</p>}
       {result.manager_status === true && <p>{"You manage the workload that created this namespace, which lets you see it and decide who has access to it."}</p>}
       {typeof result.manager_status === "string" && creatorUid && <p className="muted">

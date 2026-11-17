@@ -12,7 +12,7 @@ export type AccessMapPayload = {
   viewer: { user_uid: string; team_uids: string[] };
   table_count: number;
   tables_truncated: boolean;
-  tables: { uid: string; name: string; kind: string; namespace_uid: string | null; namespace_name: string | null;
+  tables: { uid: string; name: string; kind: string; namespaces: { uid: string; name: string }[];
     related: boolean; viewer_role: AccessRole | null }[];
   principals: { kind: "user" | "team"; uid: string; name: string | null; identity_type: "person" | "workload" | null }[];
   grants: { uid: string; target_kind: "namespace" | "table"; target_uid: string; principal_kind: "user" | "team";
@@ -66,7 +66,7 @@ export function buildAccessMap(payload: AccessMapPayload): AccessMap {
     if (!table.related) focus.add(table.uid);
     const kind = table.kind === "time_index" ? "Time-indexed" : "Relational";
     nodes.push({ id: `table:${table.uid}`, uid: table.uid, kind: table.related ? "related" : "table", label: table.name,
-      meta: `${table.related ? table.namespace_name ?? "No namespace" : kind} · you: ${accessRoleName(table.viewer_role)}`,
+      meta: `${table.related ? table.namespaces.map(namespace => namespace.name).join(", ") || "No namespace" : kind} · you: ${accessRoleName(table.viewer_role)}`,
       viewer: false, tableKind: table.kind, access: table.viewer_role ? accessLevel(table.viewer_role) : undefined });
   }
   const ids = new Set(nodes.map(node => node.id));

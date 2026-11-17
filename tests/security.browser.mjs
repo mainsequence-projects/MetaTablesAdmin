@@ -14,6 +14,8 @@ const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host',
 });
 const uid = '76bb5bc7-06b4-49b0-a45f-f3787e716ad5';
 const ns = '0d4c1a7e-5b2f-4c33-8f0e-1a2b3c4d5e6f';
+const researchNs = '6a1e9c3b-2d47-4f08-9b5c-7e8f9a0b1c2d';
+const namespaceChanges = [];
 const managedNs = '9f1e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f';
 const user = '889cb532-3d40-4261-9921-352336237069';
 const otherUser = 'e2a4f38a-1b5f-40a3-974f-70bc8f065b3f';
@@ -107,6 +109,14 @@ try {
       else if (path.endsWith('/security/database-permissions/')) result = { status: 'ready', sql_enabled: true, synchronization_pending: false,
         data_source_uid: uid, data_source_name: 'Local', engine: 'sqlite', enforcement: 'sqlite_authorizer', active_tables: 1, covered_tables: 1,
         missing_policies: 0, tables: [{ uid, name: 'prices', schema: null, policy_present: true, writes_supported: true }] };
+      else if (path === '/api/namespaces/' && request.method() === 'GET' && address.searchParams.get('limit') === '200') result = {
+        count: 2, next: null, previous: null, results: [{ uid: ns, name: 'prices', description: 'Prices' },
+          { uid: researchNs, name: 'research', description: 'Research data' }] };
+      else if (path.endsWith(`/meta-tables/${uid}/namespaces/changes/`)) {
+        namespaceChanges.push(request.postDataJSON());
+        result = { uid, namespaces: [{ uid: ns, name: 'prices', source: 'declared' }, { uid: researchNs, name: 'research', source: 'manual' }],
+          namespace_changes: { added: ['research'], removed: [] } };
+      }
       else if (path === '/api/namespaces/' && request.method() === 'POST') {
         assert.deepEqual(request.postDataJSON(), { name: 'crm', description: 'Customer data' });
         if (nameTaken) { status = 409; result = { detail: { code: 'namespace_name_taken', namespace: 'crm', owners: [{ principal_kind: 'user', principal_uid: otherUser }] } }; }
@@ -132,7 +142,7 @@ try {
         me: null, candidate_users: [{ uid: user, name: 'Alice' }], candidate_teams: [] };
       else if (path.endsWith(`/namespaces/${ns}/`)) result = { uid: ns, name: 'crm', description: 'Customer data', created_at: '2026-10-19T00:00:00Z', relational_table_count: 0, time_index_table_count: 0 };
       else if (path.includes(`/meta-tables/${uid}`)) result = { uid, physical_table_name: 'prices', identifier: 'Prices', management_mode: 'platform_managed',
-        schema_management_mode: 'alembic_managed', provisioning_status: 'active', table_kind: 'relational', namespace: 'prices', namespace_uid: ns,
+        schema_management_mode: 'alembic_managed', provisioning_status: 'active', table_kind: 'relational', namespaces: [{ uid: ns, name: 'prices', source: 'declared' }],
         role: isAdmin ? 'owner' : role, allowed_actions: allowed(tableActions, isAdmin ? 'owner' : role), columns: [], labels: [], data_source: { uid }, creation_date: '2026-09-29T00:00:00Z' };
       else result = { count: 0, results: [] };
       await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(result) });
@@ -153,9 +163,23 @@ try {
     await assertCommandCenterPageLayout(page, { rootSelector: "[data-security-access]", viewports: [{ width, height: width === 375 ? 812 : 800, pointer: width === 375 ? "coarse" : "fine" }] });
     await page.getByText('Your role: Owner', { exact: true }).waitFor();
     await page.getByText('data_viewer summary for this table.', { exact: true }).waitFor();
-    await page.getByRole('heading', { name: 'From the namespace', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'From its namespaces', exact: true }).waitFor();
+    // The table's namespaces are listed with who put it there (MetaTables ADR 0028).
+    await page.getByRole('heading', { name: 'Namespaces', exact: true }).waitFor();
+    await page.getByText("The application's code", { exact: true }).waitFor();
     await page.getByText('Research', { exact: true }).first().waitFor();
-    assert.equal(await page.getByRole('link', { name: 'prices', exact: true }).getAttribute('href'), `/namespaces/${ns}?tab=permissions`);
+    assert.equal(await page.getByRole('link', { name: 'prices', exact: true }).first().getAttribute('href'), `/namespaces/${ns}?tab=permissions`);
+
+    // Adding the table to a second namespace says what it gives before it is confirmed; the table stays in the first.
+    namespaceChanges.length = 0;
+    await pick('Namespace to add this table to', /^research/);
+    await page.getByRole('button', { name: 'Review', exact: true }).click();
+    await dialog.getByText('Everyone with a role on research gets that role on this table, and its owners become owners of this table. The table stays in its other namespaces.', { exact: true }).waitFor();
+    await dialog.getByRole('button', { name: 'Add to namespace' }).click();
+    await page.getByText('This table is now in research.', { exact: true }).waitFor();
+    assert.deepEqual(namespaceChanges, [{ add: ['research'] }]);
+    await page.getByText('A person', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('link', { name: 'research', exact: true }).getAttribute('href'), `/namespaces/${researchNs}?tab=permissions`);
 
     // A workload found by its Job name is granted a role after its texts are shown; owner is not for workloads.
     await page.getByLabel('Find people, Teams or workloads', { exact: true }).fill('nightly');
@@ -219,7 +243,7 @@ try {
     assert.equal(await page.getByRole('heading', { name: 'Who has access', exact: true }).count(), 0);
     await page.getByRole('tab', { name: 'Rows' }).waitFor();
     await page.getByRole('button', { name: 'Remove my role', exact: true }).click();
-    await dialog.getByText('You lose the Data viewer role on this table. Roles through Teams or the namespace still apply.', { exact: true }).waitFor();
+    await dialog.getByText('You lose the Data viewer role on this table. Roles through Teams or its namespaces still apply.', { exact: true }).waitFor();
     await dialog.getByRole('button', { name: 'Revoke role' }).click();
     await page.getByText('You no longer hold Data viewer here.', { exact: true }).waitFor();
     assert.deepEqual(changes.at(-1).revoke, [{ principal_kind: 'user', principal_uid: user }]);

@@ -311,6 +311,17 @@ test("access reads and changes use the role routes of tables and namespaces", as
   assert.deepEqual(await saved, { revision: "rev-2" });
 });
 
+test("adding and removing a table's namespaces is one request", async () => {
+  const calls = transport();
+  const saved = api.changeTableNamespaces("daily close", { add: ["research"], remove: ["old"] });
+  await Promise.resolve();
+  assert.deepEqual([calls[0].init.method, calls[0].path, JSON.parse(calls[0].init.body)],
+    ["POST", "/meta-tables/daily%20close/namespaces/changes/", { add: ["research"], remove: ["old"] }]);
+  const answer = { uid: "daily close", namespaces: [{ uid: "ns", name: "research", source: "manual" }], namespace_changes: { added: ["research"], removed: ["old"] } };
+  calls[0].respond(answer);
+  assert.deepEqual(await saved, answer);
+});
+
 test("creating a namespace keeps the owners a taken name reports", async () => {
   let sent;
   setTransport((path, init) => { sent = { path, init }; return Promise.resolve(Response.json({ detail: {
@@ -327,7 +338,7 @@ test("the ULM request retains column endpoints and identity needed by the schema
   const pending = api.tableSchemaGraph("daily-return", 3, true);
   await Promise.resolve();
   assert.equal(calls[0].path, "/meta-tables/daily-return/schema-graph?depth=3&include_incoming=true");
-  const payload = { root_uid: "daily-return", nodes: [{ uid: "daily-return", namespace: "market" }, { uid: "asset" }],
+  const payload = { root_uid: "daily-return", nodes: [{ uid: "daily-return", namespaces: ["market"] }, { uid: "asset" }],
     edges: [{ name: "return_asset", source_uid: "daily-return", target_uid: "asset", source_columns: ["symbol"], target_columns: ["symbol"], on_delete: "restrict" }] };
   calls[0].respond(payload);
   assert.deepEqual(await pending, payload);

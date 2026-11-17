@@ -45,7 +45,8 @@ export function ulmGraphRecord(graph: SchemaGraphApi, rootUid: string, details: 
       id: index + 1,
       uid: node.uid,
       identifier: detail?.identifier || node.identifier || node.physical_table_name || node.uid,
-      namespace: detail?.namespace_name ?? node.namespace ?? null,
+      // A table can be in several namespaces; the card shows them on one line.
+      namespace: detail?.namespaces?.map(namespace => namespace.name).join(", ") || node.namespaces?.join(", ") || null,
       physical_table_name: detail?.physical_table_name || node.physical_table_name || node.uid,
       kind: detail?.kind === "time_index" || node.time_indexed || node.table_kind === "time_indexed" ? "TimeIndexMetaTable" : "MetaTable",
       metadataLoaded: !!detail,

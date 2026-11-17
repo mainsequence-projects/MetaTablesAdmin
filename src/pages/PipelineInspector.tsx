@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ApplicationCard, ApplicationPageHeader } from "@dev-mainsequence/command-center-sdk/layout";
 import { ArrowUpRight, X } from "lucide-react";
 import { Badge, Button, formatDate } from "../ui";
-import { pipelineNodeLabel, type PipelineNode, type UpdatePipeline } from "../updatePipeline";
+import { pipelineNodeLabel, pipelineNodeNamespaces, type PipelineNode, type UpdatePipeline } from "../updatePipeline";
 
 /** The selected node stays alongside its connections, inside the graph canvas. */
 export function PipelineInspector({ node, graph, historical, status, kind, nodePath, onSelect }: {
@@ -33,7 +33,7 @@ export function PipelineInspector({ node, graph, historical, status, kind, nodeP
         {node.kind === "update" && <Badge tone={statusTone}>{status}</Badge>}
       </div>
         <dl className="mt-pipeline__inspector-facts">
-          {node.namespace && <div><dt>Namespace</dt><dd>{node.namespace}</dd></div>}
+          {pipelineNodeNamespaces(node).length > 0 && <div><dt>Namespaces</dt><dd>{pipelineNodeNamespaces(node).join(", ")}</dd></div>}
           {node.kind !== "update" && <div><dt>Physical table</dt><dd>{node.label}</dd></div>}
           {node.kind === "update" && (historical ? <>
             <div><dt>Started</dt><dd>{formatDate(node.started_at)}</dd></div>

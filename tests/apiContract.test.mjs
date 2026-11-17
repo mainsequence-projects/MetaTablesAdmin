@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiErrorDetail, callerMatch, schemaGraphRecord, tableQuery, tableRecord, updateRecord, updateRunRecord } from "../src/apiContract.ts";
+import { apiErrorDetail, callerMatch, namespaceNames, schemaGraphRecord, tableQuery, tableRecord, updateRecord, updateRunRecord } from "../src/apiContract.ts";
 
 test("database validation failures and field errors retain useful API messages", () => {
   assert.equal(apiErrorDetail("Install the mssql driver dependencies on the MetaTables API server."),
@@ -45,11 +45,13 @@ test("table filters and sorting use the Python API contract", () => {
 
 test("the public MetaTable projection populates the SDK views", () => {
   const row = tableRecord({ uid: "table", physical_table_name: "prices", time_indexed: true,
-    namespace: "Market", creation_date: "2026-09-28", data_source: { display_name: "Local", class_type: "sqlite" },
+    namespaces: [{ uid: "ns-1", name: "market", source: "declared" }, { uid: "ns-2", name: "market-shared", source: "manual" }],
+    creation_date: "2026-09-28", data_source: { display_name: "Local", class_type: "sqlite" },
     indexes_meta: [{ name: "price_index" }], incoming_fks: [{ name: "price_fk" }],
   });
   assert.equal(row.kind, "time_index");
-  assert.equal(row.namespace_name, "Market");
+  assert.equal(namespaceNames(row), "market, market-shared");
+  assert.equal(namespaceNames(tableRecord({ uid: "bare", physical_table_name: "bare" })), null);
   assert.equal(row.created_at, "2026-09-28");
   assert.equal(row.data_source_name, "Local");
   assert.equal(row.engine, "sqlite");

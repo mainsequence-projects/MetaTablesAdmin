@@ -93,8 +93,8 @@ export type TableRecord = {
   kind: TableKind;
   management_mode?: "platform_managed" | "external_registered";
   provisioning_status?: "reserved" | "active";
-  namespace_uid?: string | null;
-  namespace_name?: string | null;
+  /** Every namespace the table is in; a table can be in several (MetaTables ADR 0028). */
+  namespaces?: TableNamespace[];
   data_source_uid?: string | null;
   data_source_name?: string | null;
   engine?: string | null;
@@ -217,6 +217,10 @@ export type UpdateLog = {
   source?: string | null;
   context?: Record<string, unknown> | null;
 };
+
+/** One namespace a table is in: `declared` by its application's code, or added by a person (`manual`). */
+export type TableNamespace = { uid: string; name: string; source: "declared" | "manual" };
+export type TableNamespaceChange = { uid: string; namespaces: TableNamespace[]; namespace_changes: { added: string[]; removed: string[] } };
 
 export type NamespaceRecord = {
   uid: string;
@@ -665,5 +669,8 @@ export const metaTablesApi = {
   namespaceTables: async (uid: string, query: Record<string, string | number | undefined>, signal?: AbortSignal) => mapPage(page<TableApiRecord>(await request("GET", `namespaces/${encodeURIComponent(uid)}/tables/`, { query, signal })), tableRecord),
   /** Any person creates a namespace whose name is free and becomes its owner. */
   createNamespace: (body: { name: string; description?: string | null }) => request<NamespaceRecord>("POST", "namespaces/", { body }),
+  /** Add the table to existing namespaces and remove it from others, in one request. */
+  changeTableNamespaces: (uid: string, body: { add?: string[]; remove?: string[] }) =>
+    request<TableNamespaceChange>("POST", `meta-tables/${encodeURIComponent(uid)}/namespaces/changes/`, { body }),
   namespaceAccessMap: (uid: string, relationships: boolean, signal?: AbortSignal) => request<AccessMapPayload>("GET", `namespaces/${encodeURIComponent(uid)}/access-map/`, { query: { relationships: relationships || undefined }, signal }),
 };

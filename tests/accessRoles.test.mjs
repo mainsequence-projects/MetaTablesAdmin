@@ -96,9 +96,12 @@ test("sources say where access comes from", () => {
   assert.equal(sourceLabel({ source: "admin" }, { directory }), "Organization admin");
   assert.equal(sourceLabel({ source: "direct", principal_kind: "user", principal_uid: "ana" }, { directory }), "Direct");
   assert.equal(sourceLabel({ source: "direct", principal_kind: "team", principal_uid: "research" }, { directory }), "Team Research");
-  assert.equal(sourceLabel({ source: "namespace", principal_kind: "team", principal_uid: "research" }, { directory, namespaceName: "prices" }),
+  // A table can be in several namespaces: each source names the one its role comes from.
+  const namespaceNames = { "ns-prices": "prices", "ns-shared": "prices-shared" };
+  assert.equal(sourceLabel({ source: "namespace", namespace_uid: "ns-prices", principal_kind: "team", principal_uid: "research" }, { directory, namespaceNames }),
     "Namespace prices through Team Research");
-  assert.equal(sourceLabel({ source: "namespace", principal_kind: "user", principal_uid: "ana" }, { directory, namespaceName: "prices" }), "Namespace prices");
+  assert.equal(sourceLabel({ source: "namespace", namespace_uid: "ns-shared", principal_kind: "user", principal_uid: "ana" }, { directory, namespaceNames }), "Namespace prices-shared");
+  assert.equal(sourceLabel({ source: "namespace", namespace_uid: "ns-hidden", principal_kind: "user", principal_uid: "ana" }, { directory, namespaceNames }), "Namespace");
 });
 
 test("the creating workload is named from the directory, or by its UID when the caller cannot see it", () => {
