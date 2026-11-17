@@ -93,7 +93,7 @@ function NamespaceDetail({ uid, requestedTab }: { uid: string; requestedTab: str
     {detail => <>
       {tab === "overview" && <DetailSection title="Overview"><Facts items={[{ label: "Name", value: detail.name }, { label: "Description", value: display(detail.description) }, { label: "Namespace UID", value: detail.uid }, { label: "Relational tables", value: detail.relational_table_count ?? 0 }, { label: "Time-indexed tables", value: detail.time_index_table_count ?? 0 }, { label: "Created", value: formatDate(detail.created_at) }, { label: "Visibility", value: display(detail.visibility) }]} /></DetailSection>}
       {tab === "tables" && <NamespaceTables uid={uid} />}
-      {tab === "permissions" && <AccessPanel kind="namespace" uid={uid} namespaceName={detail.name} />}
+      {tab === "permissions" && <AccessPanel kind="namespace" uid={uid} />}
       {tab === "access-map" && <AccessMapTab uid={uid} />}
     </>}
   </DetailView>;

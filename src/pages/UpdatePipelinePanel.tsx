@@ -13,7 +13,7 @@ import { Link } from "react-router-dom";
 import { metaTablesApi } from "../api";
 import { TimeIndexMetaTableIcon } from "../metatablesNavigation";
 import { detailPath } from "../navigation";
-import { layoutUpdatePipeline, pipelineLineage, pipelineNodeLabel, type PipelineDirection, type PipelineNode, type UpdatePipeline, type PipelineLane } from "../updatePipeline";
+import { layoutUpdatePipeline, pipelineLineage, pipelineNodeLabel, pipelineNodeNamespaces, type PipelineDirection, type PipelineNode, type UpdatePipeline, type PipelineLane } from "../updatePipeline";
 import { useChartColors } from "../useChartColors";
 import { DetailSection, Picker, RemoteContent, StatePanel, useRemote } from "../ui";
 
@@ -86,7 +86,7 @@ export function UpdatePipelineCanvas({ graph, selectedNodeId, onSelectNode, hist
   const selected = visibleNodes.find(node => node.id === selectedId);
   const lineage = useMemo(() => selected ? pipelineLineage(selected.id, visibleEdges) : null, [selected, visibleEdges]);
   const needle = query.trim().toLowerCase();
-  const matches = useMemo(() => visibleNodes.filter(node => `${node.label} ${node.uid} ${node.update_hash ?? ""} ${node.namespace ?? ""}`.toLowerCase().includes(needle)), [needle, visibleNodes]);
+  const matches = useMemo(() => visibleNodes.filter(node => `${node.label} ${node.uid} ${node.update_hash ?? ""} ${pipelineNodeNamespaces(node).join(" ")}`.toLowerCase().includes(needle)), [needle, visibleNodes]);
   const shownIds = lineage && selected ? new Set([selected.id, ...lineage.upstream, ...lineage.downstream]) : null;
   // Selection highlights lineage; it must never remove captured table outputs.
   const shownNodes = visibleNodes;

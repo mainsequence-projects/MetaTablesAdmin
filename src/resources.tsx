@@ -1,5 +1,6 @@
 import { defineResourceApplication, type ResourceListResult } from "@dev-mainsequence/command-center-sdk/resource";
 import { ResourceIconLabelCell, ResourceStatusCell } from "@dev-mainsequence/command-center-sdk/views";
+import { namespaceNames } from "./apiContract";
 import { metaTablesApi, type DataUpdateRecord, type NamespaceRecord, type Page, type SourceRecord, type TableRecord, type UpdateRun } from "./api";
 import { display, formatDate, JsonBlock } from "./ui";
 import { resourceLabels } from "./navigation";
@@ -54,7 +55,7 @@ function defineTablesResource(timeIndexOnly = false, deep = false) {
       { id: "identifier", header: "Identifier", sortableKey: "identifier", importance: "secondary", renderCell: (table) => display(table.identifier, "No identifier") },
       { id: "kind", header: "Kind", importance: "secondary", renderCell: (table) => <ResourceStatusCell label={table.kind === "time_index" ? "Time-indexed" : table.management_mode === "external_registered" ? "External" : "Row table"} tone={table.kind === "time_index" ? "primary" : "neutral"} /> },
       { id: "source", header: "Data source", importance: "tertiary", renderCell: (table) => display(table.data_source_name ?? table.data_source_uid) },
-      { id: "namespace", header: "Namespace", importance: "tertiary", renderCell: (table) => display(table.namespace_name) },
+      { id: "namespace", header: "Namespaces", importance: "tertiary", renderCell: (table) => display(namespaceNames(table)) },
       deep
         ? { id: "matched", header: "Matched columns", importance: "secondary", renderCell: (table) => display(table.matched_columns?.join(", "), "Matched by description") }
         : { id: "created", header: "Created", sortableKey: "created_at", importance: "tertiary", renderCell: (table) => formatDate(table.created_at) },

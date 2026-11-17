@@ -6,7 +6,7 @@ import { buildMetaTableUmlLayout, buildRelationshipPath, getFitTransform, umlGra
 const graph = {
   root_uid: "return",
   nodes: [
-    { uid: "return", identifier: "daily_return", namespace: "market", time_indexed: true },
+    { uid: "return", identifier: "daily_return", namespaces: ["market", "market-shared"], time_indexed: true },
     { uid: "close", identifier: "daily_close", time_indexed: true },
     { uid: "instrument", physical_table_name: "instruments" },
   ],
@@ -17,7 +17,7 @@ const graph = {
     { name: "hidden", source_uid: "return", target_uid: "hidden", source_columns: ["secret"], target_columns: ["secret"] },
   ],
 };
-const root = { uid: "return", identifier: "daily_return", physical_table_name: "return_physical", kind: "time_index", namespace_name: "market",
+const root = { uid: "return", identifier: "daily_return", physical_table_name: "return_physical", kind: "time_index", namespaces: [{ uid: "ns-1", name: "market", source: "declared" }],
   columns: [
     { name: "value", data_type: "float", ordinal_position: 2, nullable: true },
     { name: "symbol", logical_name: "instrument_symbol", data_type: "text", backend_type: "VARCHAR", ordinal_position: 0, nullable: false, primary_key: true },

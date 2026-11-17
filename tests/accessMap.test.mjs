@@ -8,9 +8,9 @@ const payload = {
   viewer: { user_uid: "api", team_uids: ["trading"] },
   table_count: 2, tables_truncated: false,
   tables: [
-    { uid: "daily", name: "prices.daily_close", kind: "relational", namespace_uid: "ns", namespace_name: "prices", related: false, viewer_role: "data_viewer" },
-    { uid: "intraday", name: "prices.intraday", kind: "time_index", namespace_uid: "ns", namespace_name: "prices", related: false, viewer_role: "data_viewer" },
-    { uid: "orders", name: "trading.orders", kind: "relational", namespace_uid: "tns", namespace_name: "trading", related: true, viewer_role: "data_writer" },
+    { uid: "daily", name: "prices.daily_close", kind: "relational", namespaces: [{ uid: "ns", name: "prices" }], related: false, viewer_role: "data_viewer" },
+    { uid: "intraday", name: "prices.intraday", kind: "time_index", namespaces: [{ uid: "ns", name: "prices" }], related: false, viewer_role: "data_viewer" },
+    { uid: "orders", name: "trading.orders", kind: "relational", namespaces: [{ uid: "tns", name: "trading" }], related: true, viewer_role: "data_writer" },
   ],
   principals: [
     { kind: "user", uid: "job", name: "prices migrations (Job workload)", identity_type: "workload" },

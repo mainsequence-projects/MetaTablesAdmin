@@ -5,7 +5,6 @@ export type TableApiRecord = Omit<TableDetail, "kind"> & {
   kind?: TableRecord["kind"];
   time_indexed?: boolean;
   table_kind?: string;
-  namespace?: string | null;
   creation_date?: string | null;
   data_source?: { display_name?: string | null; class_type?: string | null };
   indexes_meta?: TableDetail["indexes"];
@@ -16,13 +15,18 @@ export function tableRecord(row: TableApiRecord): TableDetail {
   return {
     ...row,
     kind: row.kind ?? (row.time_indexed || row.table_kind === "time_indexed" ? "time_index" : "relational"),
-    namespace_name: row.namespace_name ?? row.namespace,
+    namespaces: row.namespaces ?? [],
     created_at: row.created_at ?? row.creation_date,
     data_source_name: row.data_source_name ?? row.data_source?.display_name,
     engine: row.engine ?? row.data_source?.class_type,
     indexes: row.indexes ?? row.indexes_meta,
     incoming_foreign_keys: row.incoming_foreign_keys ?? row.incoming_fks,
   };
+}
+
+/** A table's namespaces as one line, in the API's order (by name); null when it is in none. */
+export function namespaceNames(table: { namespaces?: readonly { name: string }[] } | null | undefined): string | null {
+  return table?.namespaces?.length ? table.namespaces.map(namespace => namespace.name).join(", ") : null;
 }
 
 export function tableQuery(query: Record<string, string | number | undefined>): Record<string, string | number | boolean | undefined> {
@@ -45,7 +49,7 @@ export type SchemaGraphApi = {
     physical_table_name?: string | null;
     table_kind?: string;
     time_indexed?: boolean;
-    namespace?: string | null;
+    namespaces?: string[];
     physical_schema?: string | null;
   }[];
   edges: {

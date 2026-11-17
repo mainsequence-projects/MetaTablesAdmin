@@ -132,13 +132,15 @@ export function revokeChange(revision: string, principal: PrincipalRef): AccessC
  * How a source gives access, in a short phrase: "Direct", "Team Research", "Namespace prices", "Organization admin",
  * "Manages the creating workload, nightly (Job workload)".
  */
-export function sourceLabel(source: Pick<AccessSource, "source" | "principal_kind" | "principal_uid" | "workload_user_uid">, input: {
-  directory: ReadonlyMap<string, DirectoryEntry>; namespaceName?: string | null;
+export function sourceLabel(source: Pick<AccessSource, "source" | "principal_kind" | "principal_uid" | "workload_user_uid" | "namespace_uid">, input: {
+  directory: ReadonlyMap<string, DirectoryEntry>; namespaceNames?: Readonly<Record<string, string>>;
 }) {
   if (source.source === "admin") return "Organization admin";
   if (source.source === "manager") return `Manages the creating workload${source.workload_user_uid ? `, ${workloadName(input.directory, source.workload_user_uid)}` : ""}`;
   const through = source.principal_kind === "team" && source.principal_uid
     ? ` through Team ${principalName(input.directory, "team", source.principal_uid)}` : "";
-  if (source.source === "namespace") return `Namespace${input.namespaceName ? ` ${input.namespaceName}` : ""}${through}`;
+  // A table can be in several namespaces: the source names the one this role comes from.
+  const namespaceName = source.namespace_uid ? input.namespaceNames?.[source.namespace_uid] : undefined;
+  if (source.source === "namespace") return `Namespace${namespaceName ? ` ${namespaceName}` : ""}${through}`;
   return through ? `Team ${principalName(input.directory, "team", source.principal_uid!)}` : "Direct";
 }

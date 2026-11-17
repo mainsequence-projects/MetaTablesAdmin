@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { layoutUpdatePipeline, pipelineLineage, pipelineNodeLabel } from "../src/updatePipeline.ts";
+import { layoutUpdatePipeline, pipelineLineage, pipelineNodeLabel, pipelineNodeNamespaces } from "../src/updatePipeline.ts";
 
 const node = (id, kind = "table") => ({ id, uid: id, label: id, kind });
 const edge = (source, target, kind = "reads") => ({ source, target, kind });
 
 test("pipeline titles match short table titles while preserving unrelated physical names", () => {
+  assert.equal(pipelineNodeLabel({ ...node("uid"), label: "tutorial__daily_return", namespaces: ["shared", "tutorial"] }), "daily_return");
+  assert.equal(pipelineNodeLabel({ ...node("uid"), label: "other__daily_return", namespaces: ["tutorial"] }), "other__daily_return");
+  assert.equal(pipelineNodeLabel({ ...node("uid", "update"), label: "tutorial__producer", namespaces: ["tutorial"] }), "tutorial__producer");
+  // A run graph saved before a table could be in several namespaces names one.
   assert.equal(pipelineNodeLabel({ ...node("uid"), label: "tutorial__daily_return", namespace: "tutorial" }), "daily_return");
-  assert.equal(pipelineNodeLabel({ ...node("uid"), label: "other__daily_return", namespace: "tutorial" }), "other__daily_return");
-  assert.equal(pipelineNodeLabel({ ...node("uid", "update"), label: "tutorial__producer", namespace: "tutorial" }), "tutorial__producer");
+  assert.deepEqual(pipelineNodeNamespaces({ namespace: "tutorial" }), ["tutorial"]);
+  assert.deepEqual(pipelineNodeNamespaces({ namespaces: ["a", "b"], namespace: "old" }), ["a", "b"]);
+  assert.deepEqual(pipelineNodeNamespaces({}), []);
 });
 
 test("pipeline layout orders reads, updates, writes and consumers without overlapping branches", () => {

@@ -4,6 +4,9 @@ export type PipelineNode = {
   uid: string;
   label: string;
   kind: "update" | "time_index_table" | "table";
+  /** Every namespace the table, or an update's output table, is in. */
+  namespaces?: string[];
+  /** Saved run graphs from before a table could be in several namespaces name one. */
   namespace?: string | null;
   update_hash?: string;
   output_table_uid?: string;
@@ -32,8 +35,13 @@ export type PipelineLane = { x: number; width: number; label: string; count: num
 
 /** Match the table detail's title; namespace and physical name remain in the inspector. */
 export function pipelineNodeLabel(node: PipelineNode) {
-  const prefix = node.kind !== "update" && node.namespace ? `${node.namespace}__` : null;
-  return prefix && node.label.startsWith(prefix) ? node.label.slice(prefix.length) : node.label;
+  if (node.kind === "update") return node.label;
+  const prefix = pipelineNodeNamespaces(node).map(name => `${name}__`).find(candidate => node.label.startsWith(candidate));
+  return prefix ? node.label.slice(prefix.length) : node.label;
+}
+
+export function pipelineNodeNamespaces(node: Pick<PipelineNode, "namespaces" | "namespace">): string[] {
+  return node.namespaces ?? (node.namespace ? [node.namespace] : []);
 }
 
 export function pipelineLineage(id: string, edges: readonly PipelineEdge[]) {

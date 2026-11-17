@@ -4,7 +4,8 @@ import { ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layou
 import { DataTable, ResourceActionConfirmationDialog, ResourceListPage } from "@dev-mainsequence/command-center-sdk/views";
 import { resolveResourceDetailTabs } from "@dev-mainsequence/command-center-sdk/resource";
 import { Table2 } from "lucide-react";
-import { metaTablesApi, type ResourceAction, type TableDetail, type TableRecord } from "../api";
+import { metaTablesApi, type ResourceAction, type TableDetail, type TableNamespace, type TableRecord } from "../api";
+import { namespaceNames } from "../apiContract";
 import { tableDetailTabs } from "../detailTabs";
 import { DetailTabIcon } from "../detailTabIcons";
 import { JsonTreeViewer, type JsonTreeViewerHandle } from "../JsonTreeViewer";
@@ -42,9 +43,9 @@ function statusInfo(status: TableRecord["provisioning_status"]) {
 
 function tableName(table: TableRecord) {
   const name = table.physical_table_name || table.identifier || table.uid;
-  const prefix = table.namespace_name ? `${table.namespace_name}__` : null;
-  // The summary fields preserve the namespace and full physical binding.
-  return prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
+  const prefix = (table.namespaces ?? []).map(namespace => `${namespace.name}__`).find(candidate => name.startsWith(candidate));
+  // The summary fields preserve the namespaces and full physical binding.
+  return prefix ? name.slice(prefix.length) : name;
 }
 
 export function TablesPage({ uid, tab, resource = "tables" }: { uid: string | null; tab: string | null; resource?: TableResource }) {
@@ -102,6 +103,9 @@ function TableDetailPage({ uid, requestedTab, resource }: { uid: string; request
   const remote = useRemote(`${resource}-${uid}`, (signal) => resource === "time-index-meta-tables"
     ? metaTablesApi.timeIndexTable(uid, signal) : metaTablesApi.table(uid, signal));
   const table = remote.status === "ready" ? remote.data : null;
+  // The Access tab adds and removes namespaces; the page shows the result without reloading the table.
+  const [changedNamespaces, setChangedNamespaces] = useState<TableNamespace[] | null>(null);
+  const namespacesOf = (detail: TableDetail) => changedNamespaces ?? detail.namespaces ?? [];
   const { tabs, activeTab } = resolveResourceDetailTabs(tableDetailTabs, { activeTabId: requestedTab, resource: table });
   const tab = activeTab?.id;
   const TableIcon = table?.kind === "time_index" || resource === "time-index-meta-tables" ? TimeIndexMetaTableIcon : Table2;
@@ -117,7 +121,7 @@ function TableDetailPage({ uid, requestedTab, resource }: { uid: string; request
         { key: "kind", label: "Kind", value: [kindLabel(detail)], kind: "badges", tone: detail.kind === "time_index" ? "primary" : "secondary", info: kindInfo[kindLabel(detail)] },
         { key: "status", label: "Status", value: [display(detail.provisioning_status, "Status unknown")], kind: "badges", tone: detail.provisioning_status === "active" ? "success" : "warning", info: statusInfo(detail.provisioning_status) },
         { key: "uid", label: "UID", value: detail.uid, kind: "code", info: "This table's permanent catalog identifier. Use it in API calls and links." },
-        { key: "namespace", label: "Namespace", value: display(detail.namespace_name), info: "The access group that owns this table. Namespace grants decide who can read or write it." },
+        { key: "namespace", label: "Namespaces", value: display(namespaceNames({ namespaces: namespacesOf(detail) }), "None"), info: "The access groups this table is in. A role on any of them applies to this table, and the strongest one wins." },
         { key: "physical-table", label: "Physical table", value: detail.physical_table_name, kind: "code", info: "The table's real name in the database, as used in SQL." }],
       highlight_fields: detail.description ? [{ key: "description", label: "Description", value: detail.description }] : [],
       stats: [], labels: detail.labels,
@@ -127,14 +131,14 @@ function TableDetailPage({ uid, requestedTab, resource }: { uid: string; request
     renderTabLead={({ tab }) => <DetailTabIcon id={tab.id} />}
     onTabChange={next => navigate(detailPath(resource, uid, next))}>
     {detail => <>
-      {tab === "details" && <TableFacts detail={detail} />}
+      {tab === "details" && <TableFacts detail={{ ...detail, namespaces: namespacesOf(detail) }} />}
       {tab === "rows" && <RelationRows uid={uid} />}
       {tab === "description" && <DescriptionTab uid={uid} />}
       {tab === "ulm-diagram" && <UlmDiagramTab table={detail} />}
       {tab === "stats" && <StatsTab uid={uid} />}
       {tab === "updates" && <TableUpdatesTab uid={uid} />}
       {tab === "policies" && <PoliciesPanel uid={uid} />}
-      {tab === "permissions" && <AccessPanel kind="table" uid={uid} namespaceName={detail.namespace_name} />}
+      {tab === "permissions" && <AccessPanel kind="table" uid={uid} namespaces={namespacesOf(detail)} onNamespacesChanged={setChangedNamespaces} />}
     </>}
   </DetailView>;
 }
@@ -168,7 +172,7 @@ function TableFacts({ detail }: { detail: TableDetail }) {
   return <ApplicationPageStack>
     <DetailSection title="Overview" description="Registered identity, physical binding, and contract metadata."><Facts items={[
       { label: "Identifier", value: display(detail.identifier) },
-      { label: "Namespace", value: display(detail.namespace_name) },
+      { label: "Namespaces", value: display(namespaceNames(detail), "None") },
       { label: "Data source", value: display(detail.data_source_name ?? detail.data_source_uid) },
       { label: "Engine", value: display(detail.engine) },
       { label: "Management", value: display(detail.management_mode) },

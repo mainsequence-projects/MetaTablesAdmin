@@ -36,7 +36,7 @@ Search or filter the list, then select an item to open its details. Use the deta
 
 ## Understand what you see
 
-A namespace is an access group. A role on a namespace gives the table role of the same name on every table in it, including tables added later. Removing a direct role on one table does not remove access inherited from the namespace or a Team.
+A namespace is an access group. A role on a namespace gives the table role of the same name on every table in it, including tables added later. A table can be in several namespaces; the strongest role across them applies, and a table's **Access** tab [adds it to a namespace or removes it](../tables/share-table.md). Removing a direct role on one table does not remove access inherited from the namespace or a Team.
 
 A namespace that a workload's registration created names that workload under **Who has access**. The people who manage the workload see the namespace and decide who has access to it: they grant any role, **Owner** included, to people and to Teams they belong to, and never **Owner** to a workload. They hold no role, so this gives them no access to its tables. **Your access** lists it as **Manages the creating workload**, and **Explain access** says so when it is why you can do an action.
 
